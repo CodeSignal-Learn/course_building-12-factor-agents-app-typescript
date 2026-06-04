@@ -1,0 +1,85 @@
+[
+  {
+    "type": "function",
+    "name": "sum_numbers",
+    "description": "Sum two numbers",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": { "type": "number", "description": "The first number" },
+        "b": { "type": "number", "description": "The second number" }
+      },
+      "required": ["a", "b"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "multiply_numbers",
+    "description": "Multiply two numbers",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": { "type": "number", "description": "The first number" },
+        "b": { "type": "number", "description": "The second number" }
+      },
+      "required": ["a", "b"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "subtract_numbers",
+    "description": "Subtract two numbers",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": { "type": "number", "description": "The first number" },
+        "b": { "type": "number", "description": "The second number" }
+      },
+      "required": ["a", "b"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "divide_numbers",
+    "description": "Divide two numbers",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": { "type": "number", "description": "The numerator" },
+        "b": { "type": "number", "description": "The denominator" }
+      },
+      "required": ["a", "b"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "power",
+    "description": "Raise a number to a power",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "base": { "type": "number", "description": "The base number" },
+        "exponent": { "type": "number", "description": "The exponent" }
+      },
+      "required": ["base", "exponent"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "square_root",
+    "description": "Take the square root of a number",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "description": "The number to take the square root of" }
+      },
+      "required": ["x"],
+      "additionalProperties": false
+    }
+  }
+]

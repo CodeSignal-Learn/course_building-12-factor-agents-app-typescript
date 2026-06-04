@@ -1,0 +1,23 @@
+{
+  "name": "@course-building-12-factor-agents/backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server/main.ts",
+    "client": "tsx src/client/main.ts",
+    "build": "tsc && cp -R src/core/prompts dist/core/prompts && cp -R src/core/tools/schemas dist/core/tools/schemas",
+    "start": "node dist/server/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "vite": "8.0.16"
+  }
+}

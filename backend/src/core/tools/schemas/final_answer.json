@@ -1,0 +1,16 @@
+{
+  "type": "function",
+  "name": "final_answer",
+  "description": "Provide the final answer and stop.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "description": "The final answer for the user."
+      }
+    },
+    "required": ["answer"],
+    "additionalProperties": false
+  }
+}
