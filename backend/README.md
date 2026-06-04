@@ -71,4 +71,4 @@ Content-Type: application/json
 
 The backend keeps the agent core independent from HTTP. The server loads and saves `State` objects, while `Agent.run()` receives a state and returns a new state. A progress callback persists state after each step so clients can poll live progress.
 
-Runtime state is stored in `backend/data/agent_states.json`, which is created automatically.
+Runtime state is stored in `backend/data/agent_states.db`, which is created automatically.

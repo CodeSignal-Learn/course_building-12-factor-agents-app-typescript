@@ -1,80 +1,168 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import Database from "better-sqlite3";
+import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { State } from "../core/models/state.js";
+import type { AgentStatus, ContextItem, PendingToolCall, State } from "../core/models/state.js";
 
-interface StateStoreFile {
-  states: Record<string, State>;
+interface StateRow {
+  id: string;
+  steps: number;
+  status: string;
+  context: string;
+  pending_tool_calls: string;
+  error: string | null;
+  final_answer: string | null;
 }
 
 export class StateStore {
-  private readonly filePath: string;
+  private readonly db: Database.Database;
 
-  constructor(filePath = defaultStorePath()) {
-    this.filePath = filePath;
-    mkdirSync(dirname(this.filePath), { recursive: true });
-    this.ensureFile();
+  constructor(dbPath = defaultDatabasePath()) {
+    mkdirSync(dirname(dbPath), { recursive: true });
+    this.db = new Database(dbPath);
+    this.db.pragma("journal_mode = WAL");
+    this.createTables();
   }
 
   get(id: string): State | null {
-    return this.readAll().states[id] ?? null;
+    const row = this.db.prepare("SELECT * FROM states WHERE id = ?").get(id);
+    return isStateRow(row) ? rowToState(row) : null;
   }
 
   save(state: State): State {
-    const all = this.readAll();
-    all.states[state.id] = state;
-    this.writeAll(all);
+    this.db
+      .prepare(
+        `INSERT INTO states (
+          id,
+          steps,
+          status,
+          context,
+          pending_tool_calls,
+          error,
+          final_answer
+        ) VALUES (
+          @id,
+          @steps,
+          @status,
+          @context,
+          @pending_tool_calls,
+          @error,
+          @final_answer
+        ) ON CONFLICT(id) DO UPDATE SET
+          steps = excluded.steps,
+          status = excluded.status,
+          context = excluded.context,
+          pending_tool_calls = excluded.pending_tool_calls,
+          error = excluded.error,
+          final_answer = excluded.final_answer`
+      )
+      .run(stateToRow(state));
+
     return state;
   }
 
   update(id: string, updater: (state: State) => State): State | null {
-    const all = this.readAll();
-    const current = all.states[id];
+    const current = this.get(id);
     if (!current) {
       return null;
     }
 
     const updated = updater(structuredClone(current));
-    all.states[id] = updated;
-    this.writeAll(all);
+    this.save(updated);
     return updated;
   }
 
-  private ensureFile(): void {
-    try {
-      readFileSync(this.filePath, "utf8");
-    } catch {
-      this.writeAll({ states: {} });
-    }
+  close(): void {
+    this.db.close();
   }
 
-  private readAll(): StateStoreFile {
-    const raw = readFileSync(this.filePath, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "states" in parsed &&
-      typeof parsed.states === "object" &&
-      parsed.states !== null &&
-      !Array.isArray(parsed.states)
-    ) {
-      return parsed as StateStoreFile;
-    }
-
-    return { states: {} };
-  }
-
-  private writeAll(value: StateStoreFile): void {
-    const tempPath = `${this.filePath}.tmp`;
-    writeFileSync(tempPath, JSON.stringify(value, null, 2));
-    renameSync(tempPath, this.filePath);
+  private createTables(): void {
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS states (
+          id TEXT PRIMARY KEY,
+          steps INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'running',
+          context TEXT NOT NULL DEFAULT '[]',
+          pending_tool_calls TEXT NOT NULL DEFAULT '[]',
+          error TEXT,
+          final_answer TEXT
+        )`
+      )
+      .run();
   }
 }
 
-function defaultStorePath(): string {
+function stateToRow(state: State): StateRow {
+  return {
+    id: state.id,
+    steps: state.steps,
+    status: state.status,
+    context: JSON.stringify(state.context),
+    pending_tool_calls: JSON.stringify(state.pending_tool_calls),
+    error: state.error,
+    final_answer: state.final_answer
+  };
+}
+
+function rowToState(row: StateRow): State {
+  return {
+    id: row.id,
+    steps: row.steps,
+    status: parseStatus(row.status),
+    context: parseJsonArray<ContextItem>(row.context),
+    pending_tool_calls: parseJsonArray<PendingToolCall>(row.pending_tool_calls),
+    error: row.error,
+    final_answer: row.final_answer
+  };
+}
+
+function parseStatus(value: string): AgentStatus {
+  switch (value) {
+    case "running":
+    case "paused":
+    case "complete":
+    case "failed":
+    case "waiting_human_input":
+    case "max_steps_reached":
+      return value;
+    default:
+      throw new Error(`Unknown state status: ${value}`);
+  }
+}
+
+function parseJsonArray<T>(raw: string): T[] {
+  const parsed = JSON.parse(raw) as unknown;
+  if (Array.isArray(parsed)) {
+    return parsed as T[];
+  }
+
+  return [];
+}
+
+function isStateRow(value: unknown): value is StateRow {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "steps" in value &&
+    typeof value.steps === "number" &&
+    "status" in value &&
+    typeof value.status === "string" &&
+    "context" in value &&
+    typeof value.context === "string" &&
+    "pending_tool_calls" in value &&
+    typeof value.pending_tool_calls === "string" &&
+    "error" in value &&
+    (typeof value.error === "string" || value.error === null) &&
+    "final_answer" in value &&
+    (typeof value.final_answer === "string" || value.final_answer === null)
+  );
+}
+
+function defaultDatabasePath(): string {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
-  return join(currentDirectory, "../../data/agent_states.json");
+  return join(currentDirectory, "../../data/agent_states.db");
 }

@@ -6,7 +6,7 @@ The application includes:
 
 - A strict TypeScript backend with an explicit agent reducer and the official OpenAI SDK.
 - Versioned prompt and tool schema assets.
-- File-backed state persistence for launch, pause, resume, and human input workflows.
+- SQLite-backed state persistence for launch, pause, resume, and human input workflows.
 - A React TypeScript frontend for launching and monitoring agent runs.
 - Focused tests for the deterministic parts of the agent.
 

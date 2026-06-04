@@ -4,7 +4,14 @@ import type { LlmClient, LlmFunctionCall } from "./llm/client.js";
 import { OpenAiResponsesClient } from "./llm/client.js";
 import type { PendingToolCall, State } from "./models/state.js";
 import { cloneState } from "./models/state.js";
-import { executeTool } from "./tools/executeTool.js";
+import {
+  divideNumbers,
+  multiplyNumbers,
+  power,
+  squareRoot,
+  subtractNumbers,
+  sumNumbers
+} from "./tools/functions/math.js";
 import { readAsset, readJsonAsset } from "./utils/assets.js";
 import { serializeContextToText } from "./utils/contextSerializer.js";
 
@@ -103,7 +110,66 @@ export class Agent {
         return state;
       }
 
-      const output = executeTool(callName, callArguments);
+      let output: string;
+      switch (callName) {
+        case "sum_numbers":
+          try {
+            const result = sumNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "multiply_numbers":
+          try {
+            const result = multiplyNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "subtract_numbers":
+          try {
+            const result = subtractNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "divide_numbers":
+          try {
+            const result = divideNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "power":
+          try {
+            const result = power(numberArg(callArguments, "base"), numberArg(callArguments, "exponent"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "square_root":
+          try {
+            const result = squareRoot(numberArg(callArguments, "x"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        default:
+          output = JSON.stringify({ result: `Error: Tool ${callName} not found` });
+      }
+
       state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== callId);
       state.context.push({
         type: "function_call_output",
@@ -147,4 +213,18 @@ function parseArguments(argumentsJson: string): Record<string, unknown> {
   }
 
   throw new Error("Function call arguments must be a JSON object");
+}
+
+function compactToolError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return JSON.stringify({ result: `Error: ${message}` });
+}
+
+function numberArg(args: Record<string, unknown>, name: string): number {
+  const value = args[name];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number`);
+  }
+
+  return value;
 }

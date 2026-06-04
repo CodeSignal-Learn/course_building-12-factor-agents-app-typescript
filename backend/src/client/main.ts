@@ -47,31 +47,48 @@ function extractAskHumanCall(state: State): FunctionCallContextItem | null {
   return null;
 }
 
+async function handleHumanInput(client: Client, stateId: string, currentState: State): Promise<State> {
+  const askHumanCall = extractAskHumanCall(currentState);
+  if (!askHumanCall) {
+    console.log("Agent is waiting for input but ask_human call not found");
+    return currentState;
+  }
+
+  try {
+    const output = await askHumanCli(askHumanCall);
+    const parsed = JSON.parse(output.output) as { answer?: unknown };
+    if (typeof parsed.answer !== "string") {
+      console.log("Human input did not produce a string answer");
+      return currentState;
+    }
+
+    return await client.provideInput(stateId, parsed.answer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`Error providing input: ${message}`);
+    return currentState;
+  }
+}
+
 async function pollUntilComplete(client: Client, stateId: string): Promise<State> {
   while (true) {
     let state = await client.getState(stateId);
     console.log(`Status: ${state.status}, steps: ${state.steps}`);
 
     if (state.status === "waiting_human_input") {
-      const askHumanCall = extractAskHumanCall(state);
-      if (!askHumanCall) {
-        throw new Error("State is waiting for human input, but no ask_human call was found");
-      }
-
-      const output = await askHumanCli(askHumanCall);
-      const parsed = JSON.parse(output.output) as { answer?: unknown };
-      if (typeof parsed.answer !== "string") {
-        throw new Error("Human input did not produce a string answer");
-      }
-
-      state = await client.provideInput(stateId, parsed.answer);
+      state = await handleHumanInput(client, stateId, state);
+      await delay(5000);
+      continue;
     }
 
     if (isTerminalStatus(state.status)) {
+      if (state.status === "failed") {
+        console.log(`Agent failed: ${state.error ?? "Unknown error"}`);
+      }
       return state;
     }
 
-    await delay(1000);
+    await delay(5000);
   }
 }
 
@@ -95,10 +112,11 @@ function delay(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   const client = new Client(baseUrl);
-  const prompt = process.argv.slice(2).join(" ") || "Solve the roots of this equation: x^2 - 5x + 6 = 0";
+  const prompt = process.argv.slice(2).join(" ") || "Solve the roots of this equation: x^2 - 5x + 6 = ";
   const launched = await client.launch(prompt);
 
-  console.log(`Launched agent ${launched.id}`);
+  console.log("Launched agent:");
+  console.log(JSON.stringify(launched, null, 2));
   const finalState = await pollUntilComplete(client, launched.id);
 
   console.log("\nFinal state:");

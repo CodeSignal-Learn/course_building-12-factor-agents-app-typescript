@@ -1,38 +1,28 @@
-function requireFiniteNumber(value: unknown, name: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${name} must be a finite number`);
-  }
-
-  return value;
+export function sumNumbers(a: number, b: number): number {
+  return a + b;
 }
 
-export function sumNumbers(args: Record<string, unknown>): number {
-  return requireFiniteNumber(args.a, "a") + requireFiniteNumber(args.b, "b");
+export function multiplyNumbers(a: number, b: number): number {
+  return a * b;
 }
 
-export function multiplyNumbers(args: Record<string, unknown>): number {
-  return requireFiniteNumber(args.a, "a") * requireFiniteNumber(args.b, "b");
+export function subtractNumbers(a: number, b: number): number {
+  return a - b;
 }
 
-export function subtractNumbers(args: Record<string, unknown>): number {
-  return requireFiniteNumber(args.a, "a") - requireFiniteNumber(args.b, "b");
-}
-
-export function divideNumbers(args: Record<string, unknown>): number {
-  const denominator = requireFiniteNumber(args.b, "b");
-  if (denominator === 0) {
+export function divideNumbers(a: number, b: number): number {
+  if (b === 0) {
     throw new Error("Division by zero");
   }
 
-  return requireFiniteNumber(args.a, "a") / denominator;
+  return a / b;
 }
 
-export function power(args: Record<string, unknown>): number {
-  return requireFiniteNumber(args.base, "base") ** requireFiniteNumber(args.exponent, "exponent");
+export function power(base: number, exponent: number): number {
+  return base ** exponent;
 }
 
-export function squareRoot(args: Record<string, unknown>): number {
-  const x = requireFiniteNumber(args.x, "x");
+export function squareRoot(x: number): number {
   if (x < 0) {
     throw new Error("Square root of negative number");
   }

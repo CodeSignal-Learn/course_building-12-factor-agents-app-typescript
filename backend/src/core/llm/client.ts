@@ -30,23 +30,21 @@ export interface LlmClient {
 }
 
 export class OpenAiResponsesClient implements LlmClient {
-  private readonly apiKey?: string;
-  private readonly baseURL?: string;
+  private readonly client: OpenAI | null;
 
   constructor(apiKey = process.env.OPENAI_API_KEY, baseURL = process.env.OPENAI_BASE_URL) {
-    this.apiKey = apiKey;
-    this.baseURL = baseURL;
+    this.client = apiKey
+      ? new OpenAI({
+          apiKey,
+          baseURL
+        })
+      : null;
   }
 
   async createResponse(request: LlmRequest): Promise<LlmResponse> {
-    if (!this.apiKey) {
+    if (!this.client) {
       throw new Error("OPENAI_API_KEY is required");
     }
-
-    const client = new OpenAI({
-      apiKey: this.apiKey,
-      baseURL: this.baseURL
-    });
 
     const params: ResponseCreateParamsNonStreaming = {
       model: request.model,
@@ -57,7 +55,7 @@ export class OpenAiResponsesClient implements LlmClient {
       reasoning: request.model === "gpt-5" ? { effort: request.reasoningEffort } : undefined
     };
 
-    const response = await client.responses.create(params);
+    const response = await this.client.responses.create(params);
     return { output: response.output.filter(isFunctionToolCall).map(toLlmFunctionCall) };
   }
 }

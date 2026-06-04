@@ -22,7 +22,7 @@ export function serializeContextToText(context: ContextItem[]): string {
   for (const item of context) {
     if ("type" in item && item.type === "function_call_output") {
       const callText = callMap.get(item.call_id) ?? `unknown_call(${item.call_id})`;
-      historyLines.push(`COMPLETED: ${callText} -> Result: ${item.output}`);
+      historyLines.push(`✓ COMPLETED: ${callText} → Result: ${item.output}`);
     }
   }
 
@@ -56,7 +56,15 @@ function parseJson(value: string): unknown {
 
 function formatValue(value: unknown): string {
   if (typeof value === "string") {
-    return JSON.stringify(value);
+    return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
+  }
+
+  if (value === null) {
+    return "None";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "True" : "False";
   }
 
   return String(value);
