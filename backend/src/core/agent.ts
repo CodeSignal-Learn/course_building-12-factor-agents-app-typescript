@@ -1,3 +1,5 @@
+import type { Tool } from "openai/resources/responses/responses";
+
 import type { LlmClient, LlmFunctionCall } from "./llm/client.js";
 import { OpenAiResponsesClient } from "./llm/client.js";
 import type { PendingToolCall, State } from "./models/state.js";
@@ -21,7 +23,7 @@ export class Agent {
   private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
   private readonly systemPrompt: string;
   private readonly maxSteps: number;
-  private readonly toolSchemas: unknown[];
+  private readonly toolSchemas: Tool[];
   private readonly llmClient: LlmClient;
 
   constructor(options: AgentOptions = {}) {
@@ -32,9 +34,9 @@ export class Agent {
     this.maxSteps = options.maxSteps ?? 10;
     this.llmClient = options.llmClient ?? new OpenAiResponsesClient();
 
-    const mathSchemas = readJsonAsset<unknown[]>(import.meta.url, "./tools/schemas/math.json");
-    const finalAnswerSchema = readJsonAsset<unknown>(import.meta.url, "./tools/schemas/final_answer.json");
-    const askHumanSchema = readJsonAsset<unknown>(import.meta.url, "./tools/schemas/ask_human.json");
+    const mathSchemas = readJsonAsset<Tool[]>(import.meta.url, "./tools/schemas/math.json");
+    const finalAnswerSchema = readJsonAsset<Tool>(import.meta.url, "./tools/schemas/final_answer.json");
+    const askHumanSchema = readJsonAsset<Tool>(import.meta.url, "./tools/schemas/ask_human.json");
 
     this.toolSchemas = [...mathSchemas, finalAnswerSchema, askHumanSchema];
   }

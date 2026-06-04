@@ -1,9 +1,17 @@
+import OpenAI from "openai";
+import type {
+  ResponseCreateParamsNonStreaming,
+  ResponseFunctionToolCall,
+  ResponseOutputItem,
+  Tool
+} from "openai/resources/responses/responses";
+
 export interface LlmRequest {
   model: string;
   reasoningEffort: "minimal" | "low" | "medium" | "high";
   instructions: string;
   input: string;
-  tools: unknown[];
+  tools: Tool[];
 }
 
 export interface LlmFunctionCall {
@@ -23,11 +31,11 @@ export interface LlmClient {
 
 export class OpenAiResponsesClient implements LlmClient {
   private readonly apiKey?: string;
-  private readonly baseUrl: string;
+  private readonly baseURL?: string;
 
-  constructor(apiKey = process.env.OPENAI_API_KEY, baseUrl = process.env.OPENAI_BASE_URL) {
+  constructor(apiKey = process.env.OPENAI_API_KEY, baseURL = process.env.OPENAI_BASE_URL) {
     this.apiKey = apiKey;
-    this.baseUrl = baseUrl ?? "https://api.openai.com/v1";
+    this.baseURL = baseURL;
   }
 
   async createResponse(request: LlmRequest): Promise<LlmResponse> {
@@ -35,63 +43,34 @@ export class OpenAiResponsesClient implements LlmClient {
       throw new Error("OPENAI_API_KEY is required");
     }
 
-    const response = await fetch(`${this.baseUrl}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: request.model,
-        instructions: request.instructions,
-        input: request.input,
-        tools: request.tools,
-        tool_choice: "required",
-        reasoning: request.model === "gpt-5" ? { effort: request.reasoningEffort } : undefined
-      })
+    const client = new OpenAI({
+      apiKey: this.apiKey,
+      baseURL: this.baseURL
     });
 
-    const body = (await response.json()) as unknown;
+    const params: ResponseCreateParamsNonStreaming = {
+      model: request.model,
+      instructions: request.instructions,
+      input: request.input,
+      tools: request.tools,
+      tool_choice: "required",
+      reasoning: request.model === "gpt-5" ? { effort: request.reasoningEffort } : undefined
+    };
 
-    if (!response.ok) {
-      throw new Error(`OpenAI request failed (${response.status}): ${formatUnknown(body)}`);
-    }
-
-    return { output: extractFunctionCalls(body) };
+    const response = await client.responses.create(params);
+    return { output: response.output.filter(isFunctionToolCall).map(toLlmFunctionCall) };
   }
 }
 
-function extractFunctionCalls(body: unknown): LlmFunctionCall[] {
-  if (typeof body !== "object" || body === null || !("output" in body) || !Array.isArray(body.output)) {
-    return [];
-  }
-
-  return body.output.filter(isLlmFunctionCall);
+function isFunctionToolCall(item: ResponseOutputItem): item is ResponseFunctionToolCall {
+  return item.type === "function_call";
 }
 
-function isLlmFunctionCall(value: unknown): value is LlmFunctionCall {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    value.type === "function_call" &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "arguments" in value &&
-    typeof value.arguments === "string" &&
-    "call_id" in value &&
-    typeof value.call_id === "string"
-  );
-}
-
-function formatUnknown(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+function toLlmFunctionCall(functionCall: ResponseFunctionToolCall): LlmFunctionCall {
+  return {
+    type: "function_call",
+    name: functionCall.name,
+    arguments: functionCall.arguments,
+    call_id: functionCall.call_id
+  };
 }

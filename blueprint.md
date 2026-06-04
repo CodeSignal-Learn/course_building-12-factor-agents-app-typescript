@@ -40,7 +40,7 @@ Understand the architectural principles that make agents maintainable and scalab
 # Course 2: Foundations of Agentic Tool Use in TypeScript
 
 ## Overview
-Master the practical building blocks of agentic systems in TypeScript. Covering Factors 1, 3, 4, 8, and 9, this course teaches structured model outputs, typed tool schemas, explicit context management, and controlled loops that execute tools and compact errors back into context.
+Master the practical building blocks of agentic systems in TypeScript. Covering Factors 1, 3, 4, 8, and 9, this course teaches structured model outputs with the official OpenAI TypeScript SDK, typed tool schemas, explicit context management, and controlled loops that execute tools and compact errors back into context.
 
 ## Outline
 ### Unit 1 - Prompting LLMs for Structured Outputs
@@ -50,6 +50,10 @@ Teach how to prompt the Responses API to return structured JSON that can be pars
 #### Files
 `main.ts`
 ```ts
+import OpenAI from "openai";
+
+const client = new OpenAI();
+
 const systemPrompt = `
 You are a helpful assistant that only answers with this JSON schema:
 {
@@ -57,22 +61,14 @@ You are a helpful assistant that only answers with this JSON schema:
 }
 `;
 
-const response = await fetch("https://api.openai.com/v1/responses", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    model: "gpt-5",
-    instructions: systemPrompt,
-    input: [{ role: "user", content: "What is 15 + 27?" }],
-    reasoning: { effort: "low" }
-  })
+const response = await client.responses.create({
+  model: "gpt-5",
+  instructions: systemPrompt,
+  input: [{ role: "user", content: "What is 15 + 27?" }],
+  reasoning: { effort: "low" }
 });
 
-const body = (await response.json()) as { output_text?: string };
-const result = JSON.parse(body.output_text ?? "{}") as { answer?: string };
+const result = JSON.parse(response.output_text) as { answer?: string };
 console.log(`Answer: ${result.answer}`);
 ```
 
@@ -83,6 +79,10 @@ Write a tool schema, provide it to the model, and handle the tool-call output. S
 #### Files
 `main.ts`
 ```ts
+import OpenAI from "openai";
+
+const client = new OpenAI();
+
 const toolSchemas = [
   {
     type: "function",
@@ -99,24 +99,16 @@ const toolSchemas = [
   }
 ];
 
-const response = await fetch("https://api.openai.com/v1/responses", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    model: "gpt-5",
-    instructions: "You are a helpful assistant.",
-    input: [{ role: "user", content: "What is 15 + 27?" }],
-    tools: toolSchemas,
-    tool_choice: "required",
-    reasoning: { effort: "low" }
-  })
+const response = await client.responses.create({
+  model: "gpt-5",
+  instructions: "You are a helpful assistant.",
+  input: [{ role: "user", content: "What is 15 + 27?" }],
+  tools: toolSchemas,
+  tool_choice: "required",
+  reasoning: { effort: "low" }
 });
 
-const body = (await response.json()) as { output?: unknown[] };
-const call = body.output?.find(isFunctionCall);
+const call = response.output.find(isFunctionCall);
 if (call?.name === "final_answer") {
   const args = JSON.parse(call.arguments) as { answer: string };
   console.log(`Answer: ${args.answer}`);
