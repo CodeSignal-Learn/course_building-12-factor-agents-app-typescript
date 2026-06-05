@@ -50,7 +50,7 @@ Teach how to prompt the Responses API to return structured JSON that can be pars
 #### Files
 
 `main.ts`
-```ts
+```typescript
 import OpenAI from "openai";
 
 // Create the official OpenAI SDK client.
@@ -92,7 +92,7 @@ Write a tool schema, provide it to the model, and handle the tool-call output. S
 #### Files
 
 `main.ts`
-```ts
+```typescript
 import OpenAI from "openai";
 import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
 
@@ -150,7 +150,7 @@ Demonstrate executing function calls from model responses and feeding results ba
 #### Files
 
 `main.ts`
-```ts
+```typescript
 import OpenAI from "openai";
 import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
 
@@ -295,7 +295,7 @@ Build an agentic loop that repeatedly calls the model, executes tools, and updat
 #### Files
 
 `main.ts`
-```ts
+```typescript
 import OpenAI from "openai";
 import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
 
@@ -486,7 +486,7 @@ Build an `Agent` class that processes typed context, executes tools through a sm
 #### Files
 
 `src/core/models/state.ts`
-```ts
+```typescript
 export type AgentStatus = "running" | "complete" | "failed" | "max_steps_reached";
 
 export type ContextItem =
@@ -502,7 +502,7 @@ export interface RunResult {
 ```
 
 `src/core/tools/functions/math.ts`
-```ts
+```typescript
 // Tools are ordinary TypeScript functions.
 export function sumNumbers(a: number, b: number): number {
   return a + b;
@@ -644,7 +644,7 @@ export function squareRoot(x: number): number {
 ```
 
 `src/core/agent.ts`
-```ts
+```typescript
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -822,7 +822,7 @@ function isFunctionCall(
 ```
 
 `src/main.ts`
-```ts
+```typescript
 import { Agent } from "./core/agent.js";
 import type { ContextItem } from "./core/models/state.js";
 
@@ -874,7 +874,7 @@ Decide what tool to call next to make progress on the request.
 ```
 
 `src/core/utils/contextSerializer.ts`
-```ts
+```typescript
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -945,7 +945,7 @@ function formatValue(value: unknown): string {
 ```
 
 `src/core/agent.ts`
-```ts
+```typescript
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1065,7 +1065,7 @@ function isFunctionCall(
 ```
 
 `src/main.ts`
-```ts
+```typescript
 import { Agent } from "./core/agent.js";
 import type { ContextItem } from "./core/models/state.js";
 
@@ -1095,7 +1095,7 @@ Create a unified `State` object that includes steps, status, context, pending to
 #### Files
 
 `src/core/models/state.ts`
-```ts
+```typescript
 export type AgentStatus = "running" | "complete" | "failed" | "max_steps_reached";
 
 export type ContextItem =
@@ -1124,7 +1124,7 @@ export interface State {
 ```
 
 `src/core/agent.ts`
-```ts
+```typescript
 import OpenAI from "openai";
 import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
 
@@ -1218,7 +1218,7 @@ function isFunctionCall(
 ```
 
 `src/main.ts`
-```ts
+```typescript
 import { randomUUID } from "node:crypto";
 import { Agent } from "./core/agent.js";
 import type { State } from "./core/models/state.js";
@@ -1263,7 +1263,7 @@ Build an Express API with endpoints to launch agents and retrieve state. By deco
 #### Files
 
 `src/server/main.ts`
-```ts
+```typescript
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
@@ -1336,7 +1336,7 @@ function requireStringField(body: unknown, field: string): string {
 ```
 
 `src/client/main.ts`
-```ts
+```typescript
 import type { State } from "../core/models/state.js";
 
 const baseUrl = "http://localhost:8000";
@@ -1372,7 +1372,7 @@ Replace in-memory storage with SQLite and add progress callbacks that save state
 #### Files
 
 `src/server/database.ts`
-```ts
+```typescript
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -1544,7 +1544,7 @@ function defaultDatabasePath(): string {
 ```
 
 `src/server/main.ts`
-```ts
+```typescript
 import { createApp } from "./app.js";
 
 const port = Number(process.env.PORT ?? 8000);
@@ -1564,7 +1564,7 @@ Add lifecycle endpoints that pause a running workflow and resume a saved workflo
 #### Files
 
 `src/server/app.ts`
-```ts
+```typescript
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
@@ -1789,7 +1789,7 @@ Create an API endpoint that accepts human input for waiting agents and resumes e
 #### Files
 
 `src/server/app.ts`
-```ts
+```typescript
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
