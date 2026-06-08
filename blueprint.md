@@ -43,6 +43,7 @@ Understand the architectural principles that make agents maintainable and scalab
 Master the practical building blocks of agentic systems in TypeScript. Covering Factors 1, 3, 4, 8, and 9, this course teaches structured model outputs with the official OpenAI TypeScript SDK, typed tool schemas, explicit context management, and controlled loops that execute tools and compact errors back into context.
 
 ## Outline
+
 ### Unit 1 - Prompting LLMs for Structured Outputs
 #### Goal
 Teach how to prompt the Responses API to return structured JSON that can be parsed and processed. This grounds Factor 1 by having the model translate natural language into schema-shaped output.
@@ -53,11 +54,11 @@ Teach how to prompt the Responses API to return structured JSON that can be pars
 ```typescript
 import OpenAI from "openai";
 
-// Create the official OpenAI SDK client.
-// It reads OPENAI_API_KEY from the environment by default.
+// Create the official OpenAI SDK client
+// It reads OPENAI_API_KEY from the environment by default
 const client = new OpenAI();
 
-// Define the system prompt that instructs the model on its behavior.
+// Define the system prompt that instructs the model on its behavior
 const systemPrompt = `
 You are a helpful assistant that only answers with this JSON schema:
 {
@@ -65,8 +66,8 @@ You are a helpful assistant that only answers with this JSON schema:
 }
 `;
 
-// Make a request to the Responses API through the official SDK.
-// The input is a list of messages, starting with the user's question.
+// Make a request to the Responses API through the official SDK
+// The input is a list of messages, starting with the user's question
 const response = await client.responses.create({
   model: "gpt-5",
   instructions: systemPrompt,
@@ -75,12 +76,12 @@ const response = await client.responses.create({
 });
 
 try {
-  // Parse the output text to extract the JSON answer.
+  // Parse the output text to extract the JSON answer
   const result = JSON.parse(response.output_text) as { answer?: string };
-  // Extract and print the answer field.
+  // Extract and print the answer field
   console.log(`Answer: ${result.answer}`);
 } catch {
-  // Handle cases where the model did not return valid JSON.
+  // Handle cases where the model did not return valid JSON
   console.log("Failed to parse JSON from response");
 }
 ```
@@ -94,18 +95,19 @@ Write a tool schema, provide it to the model, and handle the tool-call output. S
 `main.ts`
 ```typescript
 import OpenAI from "openai";
-import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
+import type { Tool } from "openai/resources/responses/responses";
 
-// Create the official OpenAI SDK client.
+// Create the official OpenAI SDK client
 const client = new OpenAI();
 
-// Define a single tool schema for final_answer.
-// The model must call this function instead of returning ordinary text.
+// Define a single tool schema for final_answer
+// The model must call this function instead of returning ordinary text
 const toolSchemas: Tool[] = [
   {
     type: "function",
     name: "final_answer",
     description: "Provide the final answer and stop.",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -117,7 +119,7 @@ const toolSchemas: Tool[] = [
   }
 ];
 
-// Require the model to choose a tool call.
+// Require the model to choose a tool call
 const response = await client.responses.create({
   model: "gpt-5",
   instructions: "You are a helpful assistant.",
@@ -127,19 +129,16 @@ const response = await client.responses.create({
   reasoning: { effort: "low" }
 });
 
-// The model returns a function_call item with JSON arguments.
-const call = response.output.find(isFunctionCall);
-if (call?.name === "final_answer") {
-  // Parse the validated JSON arguments from the tool call.
-  const args = JSON.parse(call.arguments) as { answer: string };
-  console.log(`Answer: ${args.answer}`);
-}
+// Find the first function_call item in the model's output
+const call = response.output.find((item) => item.type === "function_call");
 
-// Narrow SDK response items into the function-call shape we expect.
-function isFunctionCall(
-  value: ResponseOutputItem
-): value is ResponseOutputItem & { type: "function_call"; name: string; arguments: string; call_id: string } {
-  return value.type === "function_call";
+// Narrow the type and confirm it's our final_answer tool
+if (call?.type === "function_call" && call.name === "final_answer") {
+  // Parse the JSON arguments into the shape from our schema
+  const args = JSON.parse(call.arguments) as { answer: string };
+
+  // Print the answer to match the expected output
+  console.log(`Answer: ${args.answer}`);
 }
 ```
 
@@ -152,9 +151,9 @@ Demonstrate executing function calls from model responses and feeding results ba
 `main.ts`
 ```typescript
 import OpenAI from "openai";
-import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
+import type { Tool } from "openai/resources/responses/responses";
 
-// Define the functions we want to make available to the model.
+// Define the functions we want to make available to the model
 function add(a: number, b: number): number {
   return a + b;
 }
@@ -163,19 +162,20 @@ function multiply(a: number, b: number): number {
   return a * b;
 }
 
-// Define the structured context items this lesson needs.
-// Context will grow as we add function calls and their results.
+// Define the structured context items this lesson needs
+// Context will grow as we add function calls and their results
 type ContextItem =
   | { role: "user"; content: string }
   | { type: "function_call"; name: string; arguments: string; call_id: string }
   | { type: "function_call_output"; call_id: string; output: string };
 
-// Define tool schemas for the model, including final_answer.
+// Define tool schemas for the model, including final_answer
 const toolSchemas: Tool[] = [
   {
     type: "function",
     name: "final_answer",
     description: "Provide the final answer and stop.",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -189,6 +189,7 @@ const toolSchemas: Tool[] = [
     type: "function",
     name: "add",
     description: "Add two numbers together",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -203,6 +204,7 @@ const toolSchemas: Tool[] = [
     type: "function",
     name: "multiply",
     description: "Multiply two numbers together",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -223,12 +225,12 @@ When asked to do math, you must use the provided tools.
 When your work is done, call the final_answer tool.
 `;
 
-// Initialize context with the user's message.
+// Initialize context with the user's message
 const context: ContextItem[] = [
   { role: "user", content: "Compute 15 + 27 and 8 * 11" }
 ];
 
-// First API call: the model sees the user's request and available tools.
+// First API call: the model sees the user's request and available tools
 const response = await client.responses.create({
   model: "gpt-5",
   instructions: systemPrompt,
@@ -238,11 +240,14 @@ const response = await client.responses.create({
   reasoning: { effort: "low" }
 });
 
-// Process the first model response: execute any function calls and add results to context.
-// This is the key pattern: LLM calls functions -> we execute them -> we add results back to context.
-for (const item of response.output.filter(isFunctionCall)) {
-  // Step 1: Add the function call to context.
-  // This records what function the model decided to call.
+// Process the first model response: execute any function calls and add results to context
+// This is the key pattern: LLM calls functions -> we execute them -> we add results back to context
+for (const item of response.output) {
+  // Skip anything that isn't a function call; this also narrows the type
+  if (item.type !== "function_call") continue;
+
+  // Step 1: Add the function call to context
+  // This records what function the model decided to call
   context.push({
     type: "function_call",
     name: item.name,
@@ -250,16 +255,27 @@ for (const item of response.output.filter(isFunctionCall)) {
     call_id: item.call_id
   });
 
-  // Step 2: Execute the function call.
-  // Parse the JSON arguments and call the actual TypeScript function.
+  // Step 2: Execute the function call
+  // Parse the JSON arguments and call the actual TypeScript function
+  // strict: true guarantees the argument types, so these casts are safe
   const args = JSON.parse(item.arguments) as { a: number; b: number };
-  const result = item.name === "add" ? add(args.a, args.b) : multiply(args.a, args.b);
+  let result: number;
+  switch (item.name) {
+    case "add":
+      result = add(args.a, args.b);
+      break;
+    case "multiply":
+      result = multiply(args.a, args.b);
+      break;
+    default:
+      throw new Error(`Unknown tool: ${item.name}`);
+  }
 
   console.log(`Executed ${item.name}(${JSON.stringify(args)}) = ${result}`);
 
-  // Step 3: Add the function result back to context.
-  // The model needs to see the result to continue its reasoning.
-  // Use the same call_id to link the result to the original call.
+  // Step 3: Add the function result back to context
+  // The model needs to see the result to continue its reasoning
+  // Use the same call_id to link the result to the original call
   context.push({
     type: "function_call_output",
     call_id: item.call_id,
@@ -267,8 +283,7 @@ for (const item of response.output.filter(isFunctionCall)) {
   });
 }
 
-// Second API call: the model sees the function calls and their results.
-// It can now continue with another step or provide a final answer.
+// Second API call: the model sees the function calls and their results
 const finalResponse = await client.responses.create({
   model: "gpt-5",
   instructions: systemPrompt,
@@ -278,14 +293,15 @@ const finalResponse = await client.responses.create({
   reasoning: { effort: "low" }
 });
 
-console.log("\nFinal response:");
-console.log(finalResponse.output_text);
+// Because we required a tool call, the model signals completion by calling final_answer
+const finalCall = finalResponse.output.find((item) => item.type === "function_call");
+const finalAnswer =
+  finalCall?.type === "function_call" && finalCall.name === "final_answer"
+    ? (JSON.parse(finalCall.arguments) as { answer: string }).answer
+    : "";
 
-function isFunctionCall(
-  value: ResponseOutputItem
-): value is ResponseOutputItem & { type: "function_call"; name: string; arguments: string; call_id: string } {
-  return value.type === "function_call";
-}
+console.log("\nFinal response:");
+console.log(finalAnswer);
 ```
 
 ### Unit 4 - Controlling Loops of Agentic Tool-Use
@@ -297,9 +313,9 @@ Build an agentic loop that repeatedly calls the model, executes tools, and updat
 `main.ts`
 ```typescript
 import OpenAI from "openai";
-import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
+import type { Tool } from "openai/resources/responses/responses";
 
-// Define the functions we want to make available to the model.
+// Define the functions we want to make available to the model
 function add(a: number, b: number): number {
   return a + b;
 }
@@ -313,12 +329,13 @@ type ContextItem =
   | { type: "function_call"; name: string; arguments: string; call_id: string }
   | { type: "function_call_output"; call_id: string; output: string };
 
-// Define tool schemas including a special final_answer tool.
+// Define tool schemas including a special final_answer tool
 const toolSchemas: Tool[] = [
   {
     type: "function",
     name: "add",
     description: "Add two numbers together",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -333,6 +350,7 @@ const toolSchemas: Tool[] = [
     type: "function",
     name: "multiply",
     description: "Multiply two numbers together",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -347,6 +365,7 @@ const toolSchemas: Tool[] = [
     type: "function",
     name: "final_answer",
     description: "Provide the final answer and stop.",
+    strict: true,
     parameters: {
       type: "object",
       properties: {
@@ -366,23 +385,23 @@ When asked to do math, you must use the provided tools.
 When your work is done, call the final_answer tool.
 `;
 
-// Initialize context with the user's message.
+// Initialize context with the user's message
 const context: ContextItem[] = [
   { role: "user", content: "What is 15 + 27? Then multiply the result by 3." }
 ];
 
-// Set up loop control variables.
-const maxSteps = 10;
+// Set up loop control variables
+const maxSteps = 5;
 let step = 0;
 let done = false;
 let finalAnswer: string | null = null;
 
-// Main agent loop: continue until done or max steps reached.
+// Main agent loop: continue until done or max steps reached
 while (!done && step < maxSteps) {
   step += 1;
   console.log(`\n--- Step ${step} ---`);
 
-  // Call the LLM with current context.
+  // Call the LLM with current context
   const response = await client.responses.create({
     model: "gpt-5",
     instructions: systemPrompt,
@@ -392,82 +411,69 @@ while (!done && step < maxSteps) {
     reasoning: { effort: "low" }
   });
 
-  // Process each item in the response output.
+  // Process each item in the response output
   for (const item of response.output) {
-    if (!isFunctionCall(item)) {
+    // Narrow the union down to function calls via the `type` discriminant
+    if (item.type !== "function_call") {
       continue;
     }
 
     const args = JSON.parse(item.arguments) as Record<string, unknown>;
     console.log(`Calling function: ${item.name}(${JSON.stringify(args)})`);
 
-    // Add function call to context.
+    // Add function call to context
     context.push({ type: "function_call", name: item.name, arguments: item.arguments, call_id: item.call_id });
 
-    if (item.name === "final_answer") {
-      // final_answer is the model's signal that the loop can stop.
-      finalAnswer = typeof args.answer === "string" ? args.answer : null;
-      done = true;
-      console.log(`Final answer: ${finalAnswer}`);
+    // Execute the tool, capturing a result to print and an output for context
+    let result: unknown;
+    let output: string;
+    try {
+      switch (item.name) {
+        case "final_answer":
+          // final_answer is the model's signal that the loop can stop
+          result = args.answer;
+          finalAnswer = typeof result === "string" ? result : null;
+          output = JSON.stringify({ status: "reported" });
+          done = true;
+          break;
+        case "add":
+          result = add(args.a as number, args.b as number);
+          output = JSON.stringify({ result });
+          break;
+        case "multiply":
+          result = multiply(args.a as number, args.b as number);
+          output = JSON.stringify({ result });
+          break;
+        default:
+          result = `Tool ${item.name} not found`;
+          output = JSON.stringify({ error: result });
+      }
+    } catch (error) {
+      // Failures are compacted into context so the model can recover
+      const message = error instanceof Error ? error.message : String(error);
+      result = `Error: ${message}`;
+      output = JSON.stringify({ error: message });
+    }
+
+    console.log(`Result: ${result}`);
+
+    // Add function output to context
+    context.push({ type: "function_call_output", call_id: item.call_id, output });
+
+    // Exit processing if final answer reached
+    if (done) {
       break;
     }
-
-    // Execute tools with explicit cases so application control flow stays visible.
-    let output: string;
-    switch (item.name) {
-      case "add":
-        try {
-          const result = add(requireNumber(args.a), requireNumber(args.b));
-          output = JSON.stringify({ result });
-          console.log(`Result: ${result}`);
-        } catch (error) {
-          output = compactToolError(error);
-        }
-        break;
-      case "multiply":
-        try {
-          const result = multiply(requireNumber(args.a), requireNumber(args.b));
-          output = JSON.stringify({ result });
-          console.log(`Result: ${result}`);
-        } catch (error) {
-          output = compactToolError(error);
-        }
-        break;
-      default:
-        output = JSON.stringify({ error: `Tool ${item.name} not found` });
-    }
-
-    context.push({ type: "function_call_output", call_id: item.call_id, output });
   }
 }
 
-if (!done) {
+if (step >= maxSteps) {
   console.log(`\nReached maximum steps (${maxSteps})`);
 }
 
 console.log(`\nCompleted in ${step} steps`);
 if (finalAnswer) {
   console.log(`Final answer: ${finalAnswer}`);
-}
-
-function requireNumber(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error("Tool argument must be a finite number");
-  }
-
-  return value;
-}
-
-function compactToolError(error: unknown): string {
-  // Errors are compacted into context so the model can recover.
-  const message = error instanceof Error ? error.message : String(error);
-  return JSON.stringify({ error: message });
-}
-
-function isFunctionCall(
-  value: ResponseOutputItem
-): value is ResponseOutputItem & { type: "function_call"; name: string; arguments: string; call_id: string } {
-  return value.type === "function_call";
 }
 ```
 
@@ -503,7 +509,7 @@ export interface RunResult {
 
 `src/core/tools/functions/math.ts`
 ```typescript
-// Tools are ordinary TypeScript functions.
+// Tools are ordinary TypeScript functions
 export function sumNumbers(a: number, b: number): number {
   return a + b;
 }
@@ -671,11 +677,11 @@ export class Agent {
   constructor(model = "gpt-5", maxSteps = 10) {
     this.model = model;
     this.maxSteps = maxSteps;
-    // Keep prompt inline in Unit 1; Unit 2 externalizes it.
+    // Keep prompt inline in Unit 1; Unit 2 externalizes it
     this.systemPrompt =
       "You are a helpful assistant. When your work is done, call the final_answer tool. Prefer using tools to compute results.";
 
-    // Load tool schemas from JSON files.
+    // Load tool schemas from JSON files
     const schemasDir = join(dirname(fileURLToPath(import.meta.url)), "tools", "schemas");
     const mathSchemas = JSON.parse(readFileSync(join(schemasDir, "math.json"), "utf8")) as Tool[];
     const finalAnswerSchema = JSON.parse(readFileSync(join(schemasDir, "final_answer.json"), "utf8")) as Tool;
@@ -683,7 +689,7 @@ export class Agent {
   }
 
   private async callLlm(context: ContextItem[]): Promise<ResponseOutputItem[]> {
-    // Pass full context directly in Unit 1.
+    // Pass full context directly in Unit 1
     const response = await this.client.responses.create({
       model: this.model,
       instructions: this.systemPrompt,
@@ -697,7 +703,7 @@ export class Agent {
   }
 
   private async nextStep(context: ContextItem[]): Promise<RunResult> {
-    // One step: ask the model for tool calls, then execute them.
+    // One step: ask the model for tool calls, then execute them
     const responseItems = await this.callLlm(context);
 
     for (const item of responseItems) {
@@ -709,7 +715,7 @@ export class Agent {
       context.push({ type: "function_call", name: item.name, arguments: item.arguments, call_id: item.call_id });
 
       if (item.name === "final_answer") {
-        // Stop when the model signals completion.
+        // Stop when the model signals completion
         return {
           context,
           status: "complete",
@@ -717,8 +723,8 @@ export class Agent {
         };
       }
 
-      // Execute the requested tool and capture its output.
-      // Each tool is an explicit case so the control flow remains owned by the app.
+      // Execute the requested tool and capture its output
+      // Each tool is an explicit case so the control flow remains owned by the app
       let output: string;
       switch (item.name) {
         case "sum_numbers":
@@ -770,32 +776,32 @@ export class Agent {
       context.push({ type: "function_call_output", call_id: item.call_id, output });
     }
 
-    // No completion yet; keep running.
+    // No completion yet; keep running
     return { context, status: "running", finalAnswer: null };
   }
 
   async run(context: ContextItem[]): Promise<RunResult> {
-    // Reducer loop: context in, context out.
+    // Reducer loop: context in, context out
     let step = 0;
     let status: RunResult["status"] = "running";
     let finalAnswer: string | null = null;
 
-    // Loop until complete or max steps reached.
+    // Loop until complete or max steps reached
     while (status === "running" && step < this.maxSteps) {
       step += 1;
-      // Each step processes function calls and updates context.
+      // Each step processes function calls and updates context
       const result = await this.nextStep(context);
       context = result.context;
       status = result.status;
       finalAnswer = result.finalAnswer;
     }
 
-    // Handle max steps case.
+    // Handle max steps case
     if (status === "running") {
       status = "max_steps_reached";
     }
 
-    // Return the final state.
+    // Return the final state
     return { context, status, finalAnswer };
   }
 }
@@ -854,7 +860,6 @@ You are an autonomous agent that can take multiple tool-calling steps.
 
 # REQUIREMENTS
 - If your work is done, call the final_answer tool
-- If you need to ask clarification to the user, use the ask_human tool
 - ALWAYS prefer calling tools to compute, fetch, or transform information rather than fabricating results.
 
 # EXTRA INSTRUCTIONS
@@ -885,12 +890,12 @@ const templatePath = join(dirname(fileURLToPath(import.meta.url)), "..", "prompt
 const template = readFileSync(templatePath, "utf8");
 
 export function serializeContextToText(context: ContextItem[]): string {
-  // Extract the original user request from structured context.
+  // Extract the original user request from structured context
   const userMessage = context.find((item) => "role" in item && item.role === "user")?.content ?? "";
-  // Format completed tool calls and outputs into a readable execution history.
+  // Format completed tool calls and outputs into a readable execution history
   const executionHistory = buildCompletedActionLines(context);
 
-  // Fill the owned markdown template with exactly the context we want the model to see.
+  // Fill the owned markdown template with exactly the context we want the model to see
   return template
     .replace("{user_message}", userMessage)
     .replace("{execution_history}", executionHistory.length > 0 ? executionHistory.join("\n") : "(No actions completed yet)");
@@ -963,7 +968,7 @@ export class Agent {
 
   constructor(private readonly maxSteps = 10) {
     const baseDir = dirname(fileURLToPath(import.meta.url));
-    // Load system prompt from file (Factor 2).
+    // Load system prompt from file (Factor 2)
     this.systemPrompt = readFileSync(join(baseDir, "prompts", "base_system.md"), "utf8");
     this.toolSchemas = [
       ...JSON.parse(readFileSync(join(baseDir, "tools", "schemas", "math.json"), "utf8")),
@@ -972,7 +977,7 @@ export class Agent {
   }
 
   private async callLlm(context: ContextItem[]): Promise<ResponseOutputItem[]> {
-    // Serialize context to control what the model sees (Factor 3).
+    // Serialize context to control what the model sees (Factor 3)
     const input = serializeContextToText(context);
     const response = await this.client.responses.create({
       model: "gpt-5",
@@ -987,7 +992,7 @@ export class Agent {
   }
 
   async run(context: ContextItem[]): Promise<RunResult> {
-    // Main entry point: run the agent until done or max steps.
+    // Main entry point: run the agent until done or max steps
     let step = 0;
     let status: RunResult["status"] = "running";
     let finalAnswer: string | null = null;
@@ -1010,7 +1015,7 @@ export class Agent {
           break;
         }
 
-        // Execute each tool through an explicit case.
+        // Execute each tool through an explicit case
         let output: string;
         switch (item.name) {
           case "sum_numbers":
@@ -1103,7 +1108,7 @@ export type ContextItem =
   | { type: "function_call"; name: string; arguments: string; call_id: string }
   | { type: "function_call_output"; call_id: string; output: string };
 
-// Pending tool calls are stored separately until the reducer executes them.
+// Pending tool calls are stored separately until the reducer executes them
 export interface PendingToolCall {
   type: "function_call";
   name: string;
@@ -1111,7 +1116,7 @@ export interface PendingToolCall {
   call_id: string;
 }
 
-// Unified state carries execution state and business state together.
+// Unified state carries execution state and business state together
 export interface State {
   id: string;
   steps: number;
@@ -1129,6 +1134,14 @@ import OpenAI from "openai";
 import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
 
 import type { PendingToolCall, State } from "./models/state.js";
+import {
+  divideNumbers,
+  multiplyNumbers,
+  power,
+  squareRoot,
+  subtractNumbers,
+  sumNumbers
+} from "./tools/functions/math.js";
 import { serializeContextToText } from "./utils/contextSerializer.js";
 
 export class Agent {
@@ -1141,7 +1154,7 @@ export class Agent {
   ) {}
 
   async run(inputState: State): Promise<State> {
-    // Create a deep copy to avoid mutating the original.
+    // Create a deep copy to avoid mutating the original
     let state = structuredClone(inputState);
     state.status = "running";
 
@@ -1157,12 +1170,12 @@ export class Agent {
   }
 
   private async nextStep(state: State): Promise<State> {
-    // State carries both execution and business data (Factor 5).
+    // State carries both execution and business data (Factor 5)
     state.steps += 1;
 
-    // Execute pending tool calls before asking the model for another step.
+    // Execute pending tool calls before asking the model for another step
     for (const functionCall of [...state.pending_tool_calls]) {
-      // Persist the tool call into unified context history.
+      // Persist the tool call into unified context history
       state.context.push({
         type: "function_call",
         name: functionCall.name,
@@ -1171,21 +1184,79 @@ export class Agent {
       });
 
       if (functionCall.name === "final_answer") {
-        // final_answer completes the workflow and stores the answer in business state.
+        // final_answer completes the workflow and stores the answer in business state
         state.pending_tool_calls = [];
         state.status = "complete";
         state.final_answer = typeof functionCall.arguments.answer === "string" ? functionCall.arguments.answer : null;
         return state;
       }
 
-      // Execute the requested tool and compact success or failure into context.
-      const output = JSON.stringify({ result: `Executed ${functionCall.name}` });
+      let output: string;
+      switch (functionCall.name) {
+        case "sum_numbers":
+          try {
+            const result = sumNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "multiply_numbers":
+          try {
+            const result = multiplyNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "subtract_numbers":
+          try {
+            const result = subtractNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "divide_numbers":
+          try {
+            const result = divideNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "power":
+          try {
+            const result = power(numberArg(functionCall.arguments, "base"), numberArg(functionCall.arguments, "exponent"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "square_root":
+          try {
+            const result = squareRoot(numberArg(functionCall.arguments, "x"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        default:
+          output = JSON.stringify({ result: `Error: Tool ${functionCall.name} not found` });
+      }
+
       state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== functionCall.call_id);
-      // Store tool output in the same state object.
+      // Store tool output in the same state object
       state.context.push({ type: "function_call_output", call_id: functionCall.call_id, output });
     }
 
-    // Ask the model what tool call should happen next.
+    // Ask the model what tool call should happen next
     const response = await this.client.responses.create({
       model: "gpt-5",
       instructions: this.systemPrompt,
@@ -1195,7 +1266,7 @@ export class Agent {
       reasoning: { effort: "low" }
     });
 
-    // Queue new tool calls inside the unified state for the next step.
+    // Queue new tool calls inside the unified state for the next step
     state.pending_tool_calls.push(...response.output.filter(isFunctionCall).map(toPendingToolCall));
     return state;
   }
@@ -1208,6 +1279,20 @@ function toPendingToolCall(item: ResponseOutputItem & { type: "function_call"; n
     arguments: JSON.parse(item.arguments) as Record<string, unknown>,
     call_id: item.call_id
   };
+}
+
+function numberArg(args: Record<string, unknown>, name: string): number {
+  const value = args[name];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number`);
+  }
+
+  return value;
+}
+
+function compactToolError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return JSON.stringify({ result: `Error: ${message}` });
 }
 
 function isFunctionCall(
@@ -1263,7 +1348,7 @@ Build an Express API with endpoints to launch agents and retrieve state. By deco
 #### Files
 
 `src/server/main.ts`
-```typescript
+```ts
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
@@ -1278,7 +1363,7 @@ const host = process.env.HOST ?? "0.0.0.0";
 const app = express();
 const agent = new Agent({ maxSteps: 10 });
 
-// In-memory storage will be replaced with SQLite in the next unit.
+// In-memory storage will be replaced with SQLite in the next unit
 const states = new Map<string, State>();
 
 app.use(cors({ origin: "*", credentials: false }));
@@ -1288,7 +1373,7 @@ app.post("/agent/launch", (request: Request, response: Response) => {
   const inputPrompt = requireStringField(request.body, "input_prompt");
   const initialState = createInitialState(randomUUID(), inputPrompt);
 
-  // Store the state before background work starts so clients can poll immediately.
+  // Store the state before background work starts so clients can poll immediately
   states.set(initialState.id, initialState);
   void runAgentInBackground(initialState.id);
 
@@ -1316,7 +1401,7 @@ async function runAgentInBackground(stateId: string): Promise<void> {
     return;
   }
 
-  // The request returns immediately while the agent continues in the background.
+  // The request returns immediately while the agent continues in the background
   const finalState = await agent.run(state);
   states.set(stateId, finalState);
 }
@@ -1336,12 +1421,12 @@ function requireStringField(body: unknown, field: string): string {
 ```
 
 `src/client/main.ts`
-```typescript
+```ts
 import type { State } from "../core/models/state.js";
 
 const baseUrl = "http://localhost:8000";
 
-// Launch a new workflow through the REST API.
+// Launch a new workflow through the REST API
 const launchResponse = await fetch(`${baseUrl}/agent/launch`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -1350,7 +1435,7 @@ const launchResponse = await fetch(`${baseUrl}/agent/launch`, {
 const launched = (await launchResponse.json()) as State;
 console.log(`Launched agent with ID: ${launched.id}`);
 
-// Poll the backend until the run reaches a terminal state.
+// Poll the backend until the run reaches a terminal state
 while (true) {
   const stateResponse = await fetch(`${baseUrl}/agent/state/${encodeURIComponent(launched.id)}`);
   const state = (await stateResponse.json()) as State;
@@ -1361,7 +1446,7 @@ while (true) {
     break;
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 ```
 
@@ -1372,7 +1457,7 @@ Replace in-memory storage with SQLite and add progress callbacks that save state
 #### Files
 
 `src/server/database.ts`
-```typescript
+```ts
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -1543,14 +1628,364 @@ function defaultDatabasePath(): string {
 }
 ```
 
+`src/core/agent.ts`
+```ts
+import type { Tool } from "openai/resources/responses/responses";
+
+import type { LlmClient, LlmFunctionCall } from "./llm/client.js";
+import { OpenAiResponsesClient } from "./llm/client.js";
+import type { PendingToolCall, State } from "./models/state.js";
+import { cloneState } from "./models/state.js";
+import {
+  divideNumbers,
+  multiplyNumbers,
+  power,
+  squareRoot,
+  subtractNumbers,
+  sumNumbers
+} from "./tools/functions/math.js";
+import { readAsset, readJsonAsset } from "./utils/assets.js";
+import { serializeContextToText } from "./utils/contextSerializer.js";
+
+type ProgressCallback = (state: State) => void | Promise<void>;
+
+export interface AgentOptions {
+  model?: string;
+  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  extraInstructions?: string;
+  maxSteps?: number;
+  llmClient?: LlmClient;
+}
+
+export class Agent {
+  private readonly model: string;
+  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly systemPrompt: string;
+  private readonly maxSteps: number;
+  private readonly toolSchemas: Tool[];
+  private readonly llmClient: LlmClient;
+
+  constructor(options: AgentOptions = {}) {
+    this.model = options.model ?? "gpt-5";
+    this.reasoningEffort = options.reasoningEffort ?? "low";
+    this.systemPrompt =
+      readAsset(import.meta.url, "./prompts/base_system.md") + (options.extraInstructions ?? "");
+    this.maxSteps = options.maxSteps ?? 10;
+    this.llmClient = options.llmClient ?? new OpenAiResponsesClient();
+
+    const mathSchemas = readJsonAsset<Tool[]>(import.meta.url, "./tools/schemas/math.json");
+    const finalAnswerSchema = readJsonAsset<Tool>(import.meta.url, "./tools/schemas/final_answer.json");
+    const askHumanSchema = readJsonAsset<Tool>(import.meta.url, "./tools/schemas/ask_human.json");
+
+    this.toolSchemas = [...mathSchemas, finalAnswerSchema, askHumanSchema];
+  }
+
+  async run(inputState: State, progressCallback?: ProgressCallback): Promise<State> {
+    let state = cloneState(inputState);
+    state.status = "running";
+    state.error = null;
+
+    const maxStepsAllowed = state.steps > 0 ? state.steps + this.maxSteps : this.maxSteps;
+
+    try {
+      while (state.status === "running" && state.steps < maxStepsAllowed) {
+        state = await this.nextStep(state);
+
+        if (progressCallback) {
+          await progressCallback(state);
+        }
+      }
+
+      if (state.status === "running" && state.steps >= maxStepsAllowed) {
+        state.status = "max_steps_reached";
+      }
+
+      return state;
+    } catch (error) {
+      state.status = "failed";
+      state.error = error instanceof Error ? error.message : String(error);
+      state.pending_tool_calls = [];
+
+      if (progressCallback) {
+        await progressCallback(state);
+      }
+
+      return state;
+    }
+  }
+
+  private async nextStep(state: State): Promise<State> {
+    state.steps += 1;
+
+    for (const functionCall of [...state.pending_tool_calls]) {
+      const callName = functionCall.name;
+      const callArguments = functionCall.arguments;
+      const callId = functionCall.call_id;
+
+      state.context.push({
+        type: "function_call",
+        name: callName,
+        arguments: JSON.stringify(callArguments),
+        call_id: callId
+      });
+
+      if (callName === "ask_human") {
+        state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== callId);
+        state.status = "waiting_human_input";
+        return state;
+      }
+
+      if (callName === "final_answer") {
+        state.pending_tool_calls = [];
+        state.status = "complete";
+        state.final_answer = typeof callArguments.answer === "string" ? callArguments.answer : null;
+        return state;
+      }
+
+      let output: string;
+      switch (callName) {
+        case "sum_numbers":
+          try {
+            const result = sumNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "multiply_numbers":
+          try {
+            const result = multiplyNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "subtract_numbers":
+          try {
+            const result = subtractNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "divide_numbers":
+          try {
+            const result = divideNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "power":
+          try {
+            const result = power(numberArg(callArguments, "base"), numberArg(callArguments, "exponent"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        case "square_root":
+          try {
+            const result = squareRoot(numberArg(callArguments, "x"));
+            output = JSON.stringify({ result });
+          } catch (error) {
+            output = compactToolError(error);
+          }
+          break;
+
+        default:
+          output = JSON.stringify({ result: `Error: Tool ${callName} not found` });
+      }
+
+      state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== callId);
+      state.context.push({
+        type: "function_call_output",
+        call_id: callId,
+        output
+      });
+    }
+
+    const response = await this.callLlm(state);
+    state.pending_tool_calls.push(...response.map(toPendingToolCall));
+    return state;
+  }
+
+  private async callLlm(state: State): Promise<LlmFunctionCall[]> {
+    const serializedContent = serializeContextToText(state.context);
+    const response = await this.llmClient.createResponse({
+      model: this.model,
+      reasoningEffort: this.reasoningEffort,
+      instructions: this.systemPrompt,
+      input: serializedContent,
+      tools: this.toolSchemas
+    });
+
+    return response.output;
+  }
+}
+
+function toPendingToolCall(functionCall: LlmFunctionCall): PendingToolCall {
+  return {
+    type: "function_call",
+    name: functionCall.name,
+    arguments: parseArguments(functionCall.arguments),
+    call_id: functionCall.call_id
+  };
+}
+
+function parseArguments(argumentsJson: string): Record<string, unknown> {
+  const parsed = JSON.parse(argumentsJson) as unknown;
+  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    return parsed as Record<string, unknown>;
+  }
+
+  throw new Error("Function call arguments must be a JSON object");
+}
+
+function compactToolError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return JSON.stringify({ result: `Error: ${message}` });
+}
+
+function numberArg(args: Record<string, unknown>, name: string): number {
+  const value = args[name];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number`);
+  }
+
+  return value;
+}
+```
+
+`src/server/app.ts`
+```ts
+import { randomUUID } from "node:crypto";
+
+import cors from "cors";
+import express, { type NextFunction, type Request, type Response } from "express";
+
+import { Agent } from "../core/agent.js";
+import type { State } from "../core/models/state.js";
+import { createInitialState } from "../core/models/state.js";
+import { StateStore } from "./database.js";
+
+type AsyncRoute = (request: Request, response: Response, next: NextFunction) => Promise<void>;
+
+export class HttpError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+const store = new StateStore();
+const agent = new Agent({ maxSteps: 10 });
+
+export const app = express();
+
+app.use(cors({ origin: "*", credentials: false }));
+app.use(express.json());
+
+app.post(
+  "/agent/launch",
+  asyncHandler(async (request, response) => {
+    const inputPrompt = requireStringField(request.body, "input_prompt");
+    const initialState = createInitialState(randomUUID(), inputPrompt);
+
+    store.save(initialState);
+    void runAgentInBackground(initialState.id);
+
+    response.json(initialState);
+  })
+);
+
+app.get(
+  "/agent/state/:stateId",
+  asyncHandler(async (request, response) => {
+    const stateId = requireRouteParam(request.params.stateId, "stateId");
+    const state = store.get(stateId);
+    if (!state) {
+      throw new HttpError(404, "State not found");
+    }
+
+    response.json(state);
+  })
+);
+
+app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+  const statusCode = error instanceof HttpError ? error.statusCode : 500;
+  const message = error instanceof Error ? error.message : String(error);
+  response.status(statusCode).json({ detail: message });
+});
+
+async function runAgentInBackground(stateId: string): Promise<void> {
+  try {
+    const initialState = store.get(stateId);
+    if (!initialState) {
+      return;
+    }
+
+    store.save({ ...initialState, status: "running", error: null });
+
+    const finalState = await agent.run(initialState, async (state) => {
+      store.save(state);
+    });
+
+    store.save(finalState);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const state = store.get(stateId);
+    if (state) {
+      store.save({ ...state, status: "failed", error: message, pending_tool_calls: [] });
+    }
+  }
+}
+
+function asyncHandler(route: AsyncRoute): AsyncRoute {
+  return async (request, response, next) => {
+    try {
+      await route(request, response, next);
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+function requireStringField(body: unknown, field: string): string {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw new HttpError(400, "Request body must be an object");
+  }
+
+  const value = (body as Record<string, unknown>)[field];
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new HttpError(400, `${field} must be a non-empty string`);
+  }
+
+  return value;
+}
+
+function requireRouteParam(value: string | string[] | undefined, field: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new HttpError(400, `${field} must be a non-empty string`);
+  }
+
+  return value;
+}
+```
+
 `src/server/main.ts`
-```typescript
-import { createApp } from "./app.js";
+```ts
+import { app } from "./app.js";
 
 const port = Number(process.env.PORT ?? 8000);
 const host = process.env.HOST ?? "0.0.0.0";
-
-const app = createApp();
 
 app.listen(port, host, () => {
   console.log(`Backend API listening on http://${host}:${port}`);
@@ -1564,23 +1999,18 @@ Add lifecycle endpoints that pause a running workflow and resume a saved workflo
 #### Files
 
 `src/server/app.ts`
-```typescript
+```ts
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 
 import { Agent } from "../core/agent.js";
-import type { FunctionCallContextItem, State } from "../core/models/state.js";
+import type { State } from "../core/models/state.js";
 import { createInitialState } from "../core/models/state.js";
 import { StateStore } from "./database.js";
 
 type AsyncRoute = (request: Request, response: Response, next: NextFunction) => Promise<void>;
-
-export interface AppDependencies {
-  agent?: Agent;
-  store?: StateStore;
-}
 
 export class HttpError extends Error {
   constructor(
@@ -1591,108 +2021,95 @@ export class HttpError extends Error {
   }
 }
 
-export function createApp(dependencies: AppDependencies = {}): express.Express {
-  const app = express();
-  const store = dependencies.store ?? new StateStore();
-  const agent = dependencies.agent ?? new Agent({ maxSteps: 10 });
+const store = new StateStore();
+const agent = new Agent({ maxSteps: 10 });
 
-  app.use(cors({ origin: "*", credentials: false }));
-  app.use(express.json());
+export const app = express();
 
-  app.post(
-    "/agent/launch",
-    asyncHandler(async (request, response) => {
-      const inputPrompt = requireStringField(request.body, "input_prompt");
-      const initialState = createInitialState(randomUUID(), inputPrompt);
+app.use(cors({ origin: "*", credentials: false }));
+app.use(express.json());
 
-      store.save(initialState);
-      void runAgentInBackground(store, agent, initialState.id);
+app.post(
+  "/agent/launch",
+  asyncHandler(async (request, response) => {
+    const inputPrompt = requireStringField(request.body, "input_prompt");
+    const initialState = createInitialState(randomUUID(), inputPrompt);
 
-      response.json(initialState);
-    })
-  );
+    store.save(initialState);
+    void runAgentInBackground(initialState.id);
 
-  app.get(
-    "/agent/state/:stateId",
-    asyncHandler(async (request, response) => {
-      const stateId = requireRouteParam(request.params.stateId, "stateId");
-      const state = store.get(stateId);
-      if (!state) {
-        throw new HttpError(404, "State not found");
+    response.json(initialState);
+  })
+);
+
+app.get(
+  "/agent/state/:stateId",
+  asyncHandler(async (request, response) => {
+    const stateId = requireRouteParam(request.params.stateId, "stateId");
+    const state = store.get(stateId);
+    if (!state) {
+      throw new HttpError(404, "State not found");
+    }
+
+    response.json(state);
+  })
+);
+
+app.post(
+  "/agent/pause",
+  asyncHandler(async (request, response) => {
+    const id = requireStringField(request.body, "id");
+    const updated = store.update(id, (state) => {
+      if (state.status !== "running") {
+        throw new HttpError(
+          400,
+          `Cannot pause agent. Current status: ${state.status}. Only agents with status 'running' can be paused.`
+        );
       }
 
-      response.json(state);
-    })
-  );
+      return { ...state, status: "paused" };
+    });
 
-  app.post(
-    "/agent/pause",
-    asyncHandler(async (request, response) => {
-      const id = requireStringField(request.body, "id");
-      const updated = store.update(id, (state) => {
-        if (state.status !== "running") {
-          throw new HttpError(
-            400,
-            `Cannot pause agent. Current status: ${state.status}. Only agents with status 'running' can be paused.`
-          );
-        }
+    if (!updated) {
+      throw new HttpError(404, "State not found");
+    }
 
-        return { ...state, status: "paused" };
-      });
+    response.json(updated);
+  })
+);
 
-      if (!updated) {
-        throw new HttpError(404, "State not found");
-      }
+app.post(
+  "/agent/resume",
+  asyncHandler(async (request, response) => {
+    const id = requireStringField(request.body, "id");
+    const current = store.get(id);
 
-      response.json(updated);
-    })
-  );
+    if (!current) {
+      throw new HttpError(404, "State not found");
+    }
 
-  app.post(
-    "/agent/resume",
-    asyncHandler(async (request, response) => {
-      const id = requireStringField(request.body, "id");
-      const current = store.get(id);
+    if (current.status === "running") {
+      throw new HttpError(409, "Agent is already running for this state");
+    }
 
-      if (!current) {
-        throw new HttpError(404, "State not found");
-      }
+    if (current.status === "waiting_human_input") {
+      throw new HttpError(400, "Agent is waiting for human input");
+    }
 
-      if (current.status === "running") {
-        throw new HttpError(409, "Agent is already running for this state");
-      }
+    const workingState = store.save({ ...current, error: null });
+    void runAgentInBackground(id, workingState);
 
-      if (current.status === "waiting_human_input") {
-        throw new HttpError(400, "Agent is waiting for human input");
-      }
+    response.json(workingState);
+  })
+);
 
-      // Clear previous errors before continuing from saved state.
-      const workingState = store.save({ ...current, error: null });
-      void runAgentInBackground(store, agent, id, workingState);
+app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+  const statusCode = error instanceof HttpError ? error.statusCode : 500;
+  const message = error instanceof Error ? error.message : String(error);
+  response.status(statusCode).json({ detail: message });
+});
 
-      response.json(workingState);
-    })
-  );
-
-  app.use((_request, _response, next) => {
-    next(new HttpError(404, "Not found"));
-  });
-
-  app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
-    const statusCode = error instanceof HttpError ? error.statusCode : 500;
-    const message = error instanceof Error ? error.message : String(error);
-    response.status(statusCode).json({ detail: message });
-  });
-
-  return app;
-}
-
-async function runAgentInBackground(
-  store: StateStore,
-  agent: Agent,
-  stateId: string,
-  workingState?: State
-): Promise<void> {
+async function runAgentInBackground(stateId: string, workingState?: State): Promise<void> {
   try {
     let initialState = workingState;
     if (!initialState) {
@@ -1757,28 +2174,59 @@ function requireRouteParam(value: string | string[] | undefined, field: string):
 
   return value;
 }
+```
 
-function getAskHumanCallId(state: State): string | null {
-  for (const item of [...state.context].reverse()) {
-    if (isAskHumanFunctionCall(item)) {
-      return item.call_id;
-    }
+`src/server/main.ts`
+```ts
+import { app } from "./app.js";
+
+const port = Number(process.env.PORT ?? 8000);
+const host = process.env.HOST ?? "0.0.0.0";
+
+app.listen(port, host, () => {
+  console.log(`Backend API listening on http://${host}:${port}`);
+});
+```
+
+`src/client/main.ts`
+```ts
+const baseUrl = "http://localhost:8000";
+
+const launchResponse = await fetch(`${baseUrl}/agent/launch`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ input_prompt: "What is 15 + 27? Then multiply the result by 3." })
+});
+const state = (await launchResponse.json()) as { id: string };
+console.log(`Launched agent with ID: ${state.id}`);
+
+await new Promise((resolve) => setTimeout(resolve, 2000));
+
+const pauseResponse = await fetch(`${baseUrl}/agent/pause`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ id: state.id })
+});
+console.log("Paused agent:", await pauseResponse.json());
+
+const resumeResponse = await fetch(`${baseUrl}/agent/resume`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ id: state.id })
+});
+console.log("Resumed agent:", await resumeResponse.json());
+
+while (true) {
+  const response = await fetch(`${baseUrl}/agent/state/${encodeURIComponent(state.id)}`);
+  const currentState = (await response.json()) as { status: string; steps: number; final_answer?: string };
+  console.log(`Status: ${currentState.status}, Steps: ${currentState.steps}`);
+
+  if (["complete", "max_steps_reached", "failed"].includes(currentState.status)) {
+    console.log(`Final answer: ${currentState.final_answer}`);
+    break;
   }
 
-  return null;
-}
-
-function isAskHumanFunctionCall(value: unknown): value is FunctionCallContextItem {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    value.type === "function_call" &&
-    "name" in value &&
-    value.name === "ask_human" &&
-    "call_id" in value &&
-    typeof value.call_id === "string"
-  );
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 ```
 
@@ -1789,7 +2237,7 @@ Create an API endpoint that accepts human input for waiting agents and resumes e
 #### Files
 
 `src/server/app.ts`
-```typescript
+```ts
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
@@ -2053,7 +2501,206 @@ function isAskHumanFunctionCall(value: unknown): value is FunctionCallContextIte
 }
 ```
 
+`src/server/main.ts`
+```ts
+import { createApp } from "./app.js";
+
+const port = Number(process.env.PORT ?? 8000);
+const host = process.env.HOST ?? "0.0.0.0";
+
+const app = createApp();
+
+app.listen(port, host, () => {
+  console.log(`Backend API listening on http://${host}:${port}`);
+});
+```
+
+`src/client/main.ts`
+```ts
+const baseUrl = "http://localhost:8000";
+
+const launchResponse = await fetch(`${baseUrl}/agent/launch`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ input_prompt: "What is 15 + 27? Ask me for my name first." })
+});
+const state = (await launchResponse.json()) as { id: string };
+console.log(`Launched agent with ID: ${state.id}`);
+
+let currentState: { status: string; steps: number; final_answer?: string };
+while (true) {
+  const response = await fetch(`${baseUrl}/agent/state/${encodeURIComponent(state.id)}`);
+  currentState = (await response.json()) as { status: string; steps: number; final_answer?: string };
+  console.log(`Status: ${currentState.status}, Steps: ${currentState.steps}`);
+
+  if (currentState.status === "waiting_human_input") {
+    console.log("Agent is waiting for human input");
+    break;
+  }
+
+  if (["complete", "max_steps_reached", "failed"].includes(currentState.status)) {
+    console.log(`Completed: ${currentState.final_answer}`);
+    break;
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+
+if (currentState.status === "waiting_human_input") {
+  await fetch(`${baseUrl}/agent/provide_input`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: state.id, answer: "Matheus" })
+  });
+  console.log("Provided input, agent resuming");
+}
+
+while (currentState.status === "waiting_human_input" || currentState.status === "running") {
+  const response = await fetch(`${baseUrl}/agent/state/${encodeURIComponent(state.id)}`);
+  currentState = (await response.json()) as { status: string; steps: number; final_answer?: string };
+  console.log(`Status: ${currentState.status}, Steps: ${currentState.steps}`);
+
+  if (["complete", "max_steps_reached", "failed"].includes(currentState.status)) {
+    console.log(`Final answer: ${currentState.final_answer}`);
+    break;
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+```
+
 ### Unit 5 - Controlling Agents from a Backend CLI Client
 #### Goal
 Demonstrate that the same backend API can be triggered from a command-line client. This reinforces Factor 11 without making the frontend part of the course material.
 
+#### Files
+
+`src/client/main.ts`
+```ts
+import { askHumanCli } from "../core/tools/functions/humanInteraction.js";
+import type { FunctionCallContextItem, State } from "../core/models/state.js";
+
+const baseUrl = process.env.AGENT_BASE_URL ?? "http://localhost:8000";
+
+class Client {
+  constructor(private readonly apiBaseUrl: string) {}
+
+  async launch(inputPrompt: string): Promise<State> {
+    return this.post<State>("/agent/launch", { input_prompt: inputPrompt });
+  }
+
+  async resume(id: string): Promise<State> {
+    return this.post<State>("/agent/resume", { id });
+  }
+
+  async getState(id: string): Promise<State> {
+    const response = await fetch(`${this.apiBaseUrl}/agent/state/${encodeURIComponent(id)}`);
+    return parseResponse<State>(response);
+  }
+
+  async provideInput(id: string, answer: string): Promise<State> {
+    return this.post<State>("/agent/provide_input", { id, answer });
+  }
+
+  private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const response = await fetch(`${this.apiBaseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return parseResponse<T>(response);
+  }
+}
+
+function isTerminalStatus(status: State["status"]): boolean {
+  return status === "complete" || status === "failed" || status === "max_steps_reached";
+}
+
+function extractAskHumanCall(state: State): FunctionCallContextItem | null {
+  for (const item of [...state.context].reverse()) {
+    if ("type" in item && item.type === "function_call" && item.name === "ask_human") {
+      return item;
+    }
+  }
+
+  return null;
+}
+
+async function handleHumanInput(client: Client, stateId: string, currentState: State): Promise<State> {
+  const askHumanCall = extractAskHumanCall(currentState);
+  if (!askHumanCall) {
+    console.log("Agent is waiting for input but ask_human call not found");
+    return currentState;
+  }
+
+  try {
+    const output = await askHumanCli(askHumanCall);
+    const parsed = JSON.parse(output.output) as { answer?: unknown };
+    if (typeof parsed.answer !== "string") {
+      console.log("Human input did not produce a string answer");
+      return currentState;
+    }
+
+    return await client.provideInput(stateId, parsed.answer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`Error providing input: ${message}`);
+    return currentState;
+  }
+}
+
+async function pollUntilComplete(client: Client, stateId: string): Promise<State> {
+  while (true) {
+    let state = await client.getState(stateId);
+    console.log(`Status: ${state.status}, steps: ${state.steps}`);
+
+    if (state.status === "waiting_human_input") {
+      state = await handleHumanInput(client, stateId, state);
+      await delay(5000);
+      continue;
+    }
+
+    if (isTerminalStatus(state.status)) {
+      if (state.status === "failed") {
+        console.log(`Agent failed: ${state.error ?? "Unknown error"}`);
+      }
+      return state;
+    }
+
+    await delay(5000);
+  }
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const body = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    const detail =
+      typeof body === "object" && body !== null && "detail" in body ? String(body.detail) : response.statusText;
+    throw new Error(detail);
+  }
+
+  return body as T;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function main(): Promise<void> {
+  const client = new Client(baseUrl);
+  const prompt = process.argv.slice(2).join(" ") || "Solve the roots of this equation: x^2 - 5x + 6 = ";
+  const launched = await client.launch(prompt);
+
+  console.log("Launched agent:");
+  console.log(JSON.stringify(launched, null, 2));
+  const finalState = await pollUntilComplete(client, launched.id);
+
+  console.log("\nFinal state:");
+  console.log(JSON.stringify(finalState, null, 2));
+}
+
+await main();
+```
