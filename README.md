@@ -24,10 +24,9 @@ npm install
 ./start.sh
 ```
 
-The startup script launches:
+The startup script builds the frontend and launches a single combined server:
 
-- Backend API: `http://localhost:8000`
-- Frontend UI: `http://localhost:3000`
+- Frontend UI and backend API: `http://localhost:3000`
 
 ## Manual Commands
 

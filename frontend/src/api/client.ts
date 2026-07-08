@@ -1,6 +1,8 @@
 import type { AgentState } from "../types";
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+// The combined server hosts the UI and the API on the same origin, so the
+// default is relative requests; VITE_API_BASE_URL still overrides for dev
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {

@@ -3,7 +3,7 @@ import type { ContextItem, State } from "../core/models/state.js";
 
 type FunctionCallContextItem = Extract<ContextItem, { type: "function_call" }>;
 
-const baseUrl = process.env.AGENT_BASE_URL ?? "http://localhost:8000";
+const baseUrl = process.env.AGENT_BASE_URL ?? "http://localhost:3000";
 
 class Client {
   constructor(private readonly apiBaseUrl: string) {}

@@ -9,7 +9,7 @@ npm install
 npm run dev --workspace backend
 ```
 
-The server listens on `http://localhost:8000`.
+The server listens on `http://localhost:3000`. It also serves the built frontend from `frontend/dist` when present, so the UI and the API share one port.
 
 ## Environment
 
@@ -19,7 +19,7 @@ export OPENAI_API_KEY="your-api-key-here"
 
 Optional variables:
 
-- `PORT`: backend port, default `8000`
+- `PORT`: server port, default `3000`
 - `HOST`: backend host, default `0.0.0.0`
 - `OPENAI_BASE_URL`: alternate OpenAI-compatible base URL
 

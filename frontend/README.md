@@ -9,10 +9,10 @@ npm install
 npm run dev --workspace frontend
 ```
 
-The UI runs on `http://localhost:3000` and expects the backend at `http://localhost:8000`.
+In production the UI is served by the combined server at `http://localhost:3000` (build with `npm run build --workspace frontend`; the backend serves `frontend/dist`). The Vite dev server proxies `/agent` requests to the combined server, so run the backend alongside it.
 
-To override the API URL:
+To point the UI at a different API origin:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:8000 npm run dev --workspace frontend
+VITE_API_BASE_URL=http://localhost:3000 npm run dev --workspace frontend
 ```
