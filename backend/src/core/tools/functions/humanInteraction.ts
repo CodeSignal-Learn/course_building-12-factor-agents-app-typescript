@@ -1,7 +1,10 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
-import type { FunctionCallContextItem, FunctionCallOutputContextItem } from "../../models/state.js";
+import type { ContextItem } from "../../models/state.js";
+
+type FunctionCallContextItem = Extract<ContextItem, { type: "function_call" }>;
+type FunctionCallOutputContextItem = Extract<ContextItem, { type: "function_call_output" }>;
 
 function parseQuestion(functionCall: FunctionCallContextItem): string {
   const parsed = JSON.parse(functionCall.arguments) as unknown;

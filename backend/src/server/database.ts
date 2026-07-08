@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { AGENT_STATUSES } from "../core/models/state.js";
 import type { AgentStatus, ContextItem, PendingToolCall, State } from "../core/models/state.js";
 
 interface StateRow {
@@ -118,18 +119,14 @@ function rowToState(row: StateRow): State {
   };
 }
 
+// Validate against the shared status list so the table stays stable as new
+// statuses are introduced in later units (just extend AGENT_STATUSES)
 function parseStatus(value: string): AgentStatus {
-  switch (value) {
-    case "running":
-    case "paused":
-    case "complete":
-    case "failed":
-    case "waiting_human_input":
-    case "max_steps_reached":
-      return value;
-    default:
-      throw new Error(`Unknown state status: ${value}`);
+  if ((AGENT_STATUSES as readonly string[]).includes(value)) {
+    return value as AgentStatus;
   }
+
+  throw new Error(`Unknown state status: ${value}`);
 }
 
 function parseJsonArray<T>(raw: string): T[] {

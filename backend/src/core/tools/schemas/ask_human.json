@@ -2,6 +2,7 @@
   "type": "function",
   "name": "ask_human",
   "description": "Ask the user for clarification or additional information.",
+  "strict": true,
   "parameters": {
     "type": "object",
     "properties": {

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx src/server/main.ts",
     "client": "tsx src/client/main.ts",
-    "build": "tsc && cp -R src/core/prompts dist/core/prompts && cp -R src/core/tools/schemas dist/core/tools/schemas",
+    "build": "rm -rf dist && tsc && cp -R src/core/prompts dist/core/prompts && cp -R src/core/tools/schemas dist/core/tools/schemas",
     "start": "node dist/server/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

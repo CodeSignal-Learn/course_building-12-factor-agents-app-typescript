@@ -1,9 +1,10 @@
-import type { Tool } from "openai/resources/responses/responses";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import OpenAI from "openai";
+import type { ResponseOutputItem, Tool } from "openai/resources/responses/responses";
 
-import type { LlmClient, LlmFunctionCall } from "./llm/client.js";
-import { OpenAiResponsesClient } from "./llm/client.js";
 import type { PendingToolCall, State } from "./models/state.js";
-import { cloneState } from "./models/state.js";
 import {
   divideNumbers,
   multiplyNumbers,
@@ -12,9 +13,9 @@ import {
   subtractNumbers,
   sumNumbers
 } from "./tools/functions/math.js";
-import { readAsset, readJsonAsset } from "./utils/assets.js";
 import { serializeContextToText } from "./utils/contextSerializer.js";
 
+// A callback lets the API layer persist state after every step (Factor 5)
 type ProgressCallback = (state: State) => void | Promise<void>;
 
 export interface AgentOptions {
@@ -22,43 +23,46 @@ export interface AgentOptions {
   reasoningEffort?: "minimal" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
-  llmClient?: LlmClient;
 }
 
 export class Agent {
+  private readonly client = new OpenAI();
   private readonly model: string;
   private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
-  private readonly systemPrompt: string;
   private readonly maxSteps: number;
+  private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
-  private readonly llmClient: LlmClient;
 
   constructor(options: AgentOptions = {}) {
     this.model = options.model ?? "gpt-5";
     this.reasoningEffort = options.reasoningEffort ?? "low";
-    this.systemPrompt =
-      readAsset(import.meta.url, "./prompts/base_system.md") + (options.extraInstructions ?? "");
     this.maxSteps = options.maxSteps ?? 10;
-    this.llmClient = options.llmClient ?? new OpenAiResponsesClient();
 
-    const mathSchemas = readJsonAsset<Tool[]>(import.meta.url, "./tools/schemas/math.json");
-    const finalAnswerSchema = readJsonAsset<Tool>(import.meta.url, "./tools/schemas/final_answer.json");
-    const askHumanSchema = readJsonAsset<Tool>(import.meta.url, "./tools/schemas/ask_human.json");
-
-    this.toolSchemas = [...mathSchemas, finalAnswerSchema, askHumanSchema];
+    const baseDir = dirname(fileURLToPath(import.meta.url));
+    this.systemPrompt =
+      readFileSync(join(baseDir, "prompts", "base_system.md"), "utf8") + (options.extraInstructions ?? "");
+    this.toolSchemas = [
+      ...JSON.parse(readFileSync(join(baseDir, "tools", "schemas", "math.json"), "utf8")),
+      JSON.parse(readFileSync(join(baseDir, "tools", "schemas", "final_answer.json"), "utf8")),
+      // Include the ask_human schema so the model can escalate to a human (Factor 7)
+      JSON.parse(readFileSync(join(baseDir, "tools", "schemas", "ask_human.json"), "utf8"))
+    ] as Tool[];
   }
 
+  // Reducer: State in, State out (Factor 12). The optional callback persists progress.
   async run(inputState: State, progressCallback?: ProgressCallback): Promise<State> {
-    let state = cloneState(inputState);
+    let state = structuredClone(inputState);
     state.status = "running";
     state.error = null;
 
+    // Allow a resumed run (steps > 0) to make additional progress
     const maxStepsAllowed = state.steps > 0 ? state.steps + this.maxSteps : this.maxSteps;
 
     try {
       while (state.status === "running" && state.steps < maxStepsAllowed) {
         state = await this.nextStep(state);
 
+        // Save after every step so polling clients always see durable progress
         if (progressCallback) {
           await progressCallback(state);
         }
@@ -85,37 +89,40 @@ export class Agent {
   private async nextStep(state: State): Promise<State> {
     state.steps += 1;
 
+    // Execute pending tool calls, recording each into unified context (Factor 5)
     for (const functionCall of [...state.pending_tool_calls]) {
-      const callName = functionCall.name;
-      const callArguments = functionCall.arguments;
-      const callId = functionCall.call_id;
-
       state.context.push({
         type: "function_call",
-        name: callName,
-        arguments: JSON.stringify(callArguments),
-        call_id: callId
+        name: functionCall.name,
+        arguments: JSON.stringify(functionCall.arguments),
+        call_id: functionCall.call_id
       });
 
-      if (callName === "ask_human") {
-        state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== callId);
+      if (functionCall.name === "final_answer") {
+        state.pending_tool_calls = [];
+        state.status = "complete";
+        state.final_answer =
+          typeof functionCall.arguments.answer === "string" ? functionCall.arguments.answer : null;
+        return state;
+      }
+
+      if (functionCall.name === "ask_human") {
+        // Human escalation: drop this call, pause the loop, and wait for input (Factor 7).
+        // The ask_human function_call stays in context so the API can match the answer later.
+        state.pending_tool_calls = state.pending_tool_calls.filter(
+          (call) => call.call_id !== functionCall.call_id
+        );
         state.status = "waiting_human_input";
         return state;
       }
 
-      if (callName === "final_answer") {
-        state.pending_tool_calls = [];
-        state.status = "complete";
-        state.final_answer = typeof callArguments.answer === "string" ? callArguments.answer : null;
-        return state;
-      }
-
       let output: string;
-      switch (callName) {
+      switch (functionCall.name) {
         case "sum_numbers":
           try {
-            const result = sumNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
-            output = JSON.stringify({ result });
+            output = JSON.stringify({
+              result: sumNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"))
+            });
           } catch (error) {
             output = compactToolError(error);
           }
@@ -123,8 +130,9 @@ export class Agent {
 
         case "multiply_numbers":
           try {
-            const result = multiplyNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
-            output = JSON.stringify({ result });
+            output = JSON.stringify({
+              result: multiplyNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"))
+            });
           } catch (error) {
             output = compactToolError(error);
           }
@@ -132,8 +140,9 @@ export class Agent {
 
         case "subtract_numbers":
           try {
-            const result = subtractNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
-            output = JSON.stringify({ result });
+            output = JSON.stringify({
+              result: subtractNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"))
+            });
           } catch (error) {
             output = compactToolError(error);
           }
@@ -141,8 +150,9 @@ export class Agent {
 
         case "divide_numbers":
           try {
-            const result = divideNumbers(numberArg(callArguments, "a"), numberArg(callArguments, "b"));
-            output = JSON.stringify({ result });
+            output = JSON.stringify({
+              result: divideNumbers(numberArg(functionCall.arguments, "a"), numberArg(functionCall.arguments, "b"))
+            });
           } catch (error) {
             output = compactToolError(error);
           }
@@ -150,8 +160,9 @@ export class Agent {
 
         case "power":
           try {
-            const result = power(numberArg(callArguments, "base"), numberArg(callArguments, "exponent"));
-            output = JSON.stringify({ result });
+            output = JSON.stringify({
+              result: power(numberArg(functionCall.arguments, "base"), numberArg(functionCall.arguments, "exponent"))
+            });
           } catch (error) {
             output = compactToolError(error);
           }
@@ -159,65 +170,45 @@ export class Agent {
 
         case "square_root":
           try {
-            const result = squareRoot(numberArg(callArguments, "x"));
-            output = JSON.stringify({ result });
+            output = JSON.stringify({ result: squareRoot(numberArg(functionCall.arguments, "x")) });
           } catch (error) {
             output = compactToolError(error);
           }
           break;
 
         default:
-          output = JSON.stringify({ result: `Error: Tool ${callName} not found` });
+          output = JSON.stringify({ result: `Error: Tool ${functionCall.name} not found` });
       }
 
-      state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== callId);
-      state.context.push({
-        type: "function_call_output",
-        call_id: callId,
-        output
-      });
+      state.pending_tool_calls = state.pending_tool_calls.filter((call) => call.call_id !== functionCall.call_id);
+      state.context.push({ type: "function_call_output", call_id: functionCall.call_id, output });
     }
 
-    const response = await this.callLlm(state);
-    state.pending_tool_calls.push(...response.map(toPendingToolCall));
-    return state;
-  }
-
-  private async callLlm(state: State): Promise<LlmFunctionCall[]> {
-    const serializedContent = serializeContextToText(state.context);
-    const response = await this.llmClient.createResponse({
+    // Ask the model what tool call should happen next
+    const response = await this.client.responses.create({
       model: this.model,
-      reasoningEffort: this.reasoningEffort,
       instructions: this.systemPrompt,
-      input: serializedContent,
-      tools: this.toolSchemas
+      input: serializeContextToText(state.context),
+      tools: this.toolSchemas,
+      tool_choice: "required",
+      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
     });
 
-    return response.output;
+    // Queue new tool calls inside the unified state for the next step
+    state.pending_tool_calls.push(...response.output.filter(isFunctionCall).map(toPendingToolCall));
+    return state;
   }
 }
 
-function toPendingToolCall(functionCall: LlmFunctionCall): PendingToolCall {
+function toPendingToolCall(
+  item: ResponseOutputItem & { type: "function_call"; name: string; arguments: string; call_id: string }
+): PendingToolCall {
   return {
     type: "function_call",
-    name: functionCall.name,
-    arguments: parseArguments(functionCall.arguments),
-    call_id: functionCall.call_id
+    name: item.name,
+    arguments: JSON.parse(item.arguments) as Record<string, unknown>,
+    call_id: item.call_id
   };
-}
-
-function parseArguments(argumentsJson: string): Record<string, unknown> {
-  const parsed = JSON.parse(argumentsJson) as unknown;
-  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-    return parsed as Record<string, unknown>;
-  }
-
-  throw new Error("Function call arguments must be a JSON object");
-}
-
-function compactToolError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return JSON.stringify({ result: `Error: ${message}` });
 }
 
 function numberArg(args: Record<string, unknown>, name: string): number {
@@ -227,4 +218,15 @@ function numberArg(args: Record<string, unknown>, name: string): number {
   }
 
   return value;
+}
+
+function compactToolError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return JSON.stringify({ result: `Error: ${message}` });
+}
+
+function isFunctionCall(
+  value: ResponseOutputItem
+): value is ResponseOutputItem & { type: "function_call"; name: string; arguments: string; call_id: string } {
+  return value.type === "function_call";
 }

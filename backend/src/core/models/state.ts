@@ -1,40 +1,23 @@
-export type AgentStatus =
-  | "running"
-  | "paused"
-  | "complete"
-  | "failed"
-  | "waiting_human_input"
-  | "max_steps_reached";
+// The statuses are declared as a runtime array so that data read back from the
+// database can be validated at runtime. TypeScript types are erased at runtime,
+// so we derive the AgentStatus type from this single source of truth.
+export const AGENT_STATUSES = [
+  "running",
+  "paused",
+  "waiting_human_input",
+  "complete",
+  "failed",
+  "max_steps_reached"
+] as const;
 
-export interface UserMessage {
-  role: "user";
-  content: string;
-}
-
-export interface AssistantMessage {
-  role: "assistant";
-  content: string;
-}
-
-export interface FunctionCallContextItem {
-  type: "function_call";
-  name: string;
-  arguments: string;
-  call_id: string;
-}
-
-export interface FunctionCallOutputContextItem {
-  type: "function_call_output";
-  call_id: string;
-  output: string;
-}
+export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
 export type ContextItem =
-  | UserMessage
-  | AssistantMessage
-  | FunctionCallContextItem
-  | FunctionCallOutputContextItem;
+  | { role: "user"; content: string }
+  | { type: "function_call"; name: string; arguments: string; call_id: string }
+  | { type: "function_call_output"; call_id: string; output: string };
 
+// Pending tool calls are stored separately until the reducer executes them
 export interface PendingToolCall {
   type: "function_call";
   name: string;
@@ -42,6 +25,7 @@ export interface PendingToolCall {
   call_id: string;
 }
 
+// Unified state carries execution state and business state together
 export interface State {
   id: string;
   steps: number;
@@ -50,20 +34,4 @@ export interface State {
   pending_tool_calls: PendingToolCall[];
   error: string | null;
   final_answer: string | null;
-}
-
-export function createInitialState(id: string, inputPrompt: string): State {
-  return {
-    id,
-    steps: 0,
-    status: "running",
-    context: [{ role: "user", content: inputPrompt }],
-    pending_tool_calls: [],
-    error: null,
-    final_answer: null
-  };
-}
-
-export function cloneState(state: State): State {
-  return structuredClone(state);
 }
