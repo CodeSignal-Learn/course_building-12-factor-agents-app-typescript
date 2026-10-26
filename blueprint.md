@@ -67,7 +67,7 @@ You are a helpful assistant that only answers with this JSON schema:
 // Make a request to the Responses API through the official SDK
 // The input is a list of messages, starting with the user's question
 const response = await client.responses.create({
-  model: "gpt-5",
+  model: "gpt-6-luna",
   instructions: systemPrompt,
   input: [{ role: "user", content: "What is 15 + 27?" }],
   reasoning: { effort: "low" }
@@ -128,7 +128,7 @@ const toolSchemas: Tool[] = [
 
 // Require the model to choose a tool call
 const response = await client.responses.create({
-  model: "gpt-5",
+  model: "gpt-6-luna",
   instructions: "You are a helpful assistant.",
   input: [{ role: "user", content: "What is 15 + 27?" }],
   tools: toolSchemas,
@@ -238,7 +238,7 @@ const context: ContextItem[] = [
 
 // First API call: the model sees the user's request and available tools
 const response = await client.responses.create({
-  model: "gpt-5",
+  model: "gpt-6-luna",
   instructions: systemPrompt,
   input: context,
   tools: toolSchemas,
@@ -291,7 +291,7 @@ for (const item of response.output) {
 
 // Second API call: the model sees the function calls and their results
 const finalResponse = await client.responses.create({
-  model: "gpt-5",
+  model: "gpt-6-luna",
   instructions: systemPrompt,
   input: context,
   tools: toolSchemas,
@@ -410,7 +410,7 @@ while (!done && step < maxSteps) {
 
   // Call the LLM with current context
   const response = await client.responses.create({
-    model: "gpt-5",
+    model: "gpt-6-luna",
     instructions: systemPrompt,
     input: context,
     tools: toolSchemas,
@@ -685,7 +685,7 @@ import {
 // An options object keeps the constructor extensible without positional-argument churn
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -693,13 +693,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
     // Keep prompt inline in Unit 1; Unit 2 externalizes it
@@ -725,7 +725,7 @@ export class Agent {
       input: context,
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     return response.output;
@@ -998,7 +998,7 @@ import { serializeContextToText } from "./utils/contextSerializer.js";
 
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -1006,13 +1006,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
 
@@ -1035,7 +1035,7 @@ export class Agent {
       input,
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     return response.output;
@@ -1226,7 +1226,7 @@ import { serializeContextToText } from "./utils/contextSerializer.js";
 
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -1234,13 +1234,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
 
@@ -1374,7 +1374,7 @@ export class Agent {
       input: serializeContextToText(state.context),
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     // Queue new tool calls inside the unified state for the next step
@@ -1825,7 +1825,7 @@ type ProgressCallback = (state: State) => void | Promise<void>;
 
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -1833,13 +1833,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
 
@@ -1984,7 +1984,7 @@ export class Agent {
       input: serializeContextToText(state.context),
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     // Queue new tool calls inside the unified state for the next step
@@ -2430,7 +2430,7 @@ type ProgressCallback = (state: State) => void | Promise<void>;
 
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -2438,13 +2438,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
 
@@ -2589,7 +2589,7 @@ export class Agent {
       input: serializeContextToText(state.context),
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     // Queue new tool calls inside the unified state for the next step
@@ -2952,7 +2952,7 @@ type ProgressCallback = (state: State) => void | Promise<void>;
 
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -2960,13 +2960,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
 
@@ -3123,7 +3123,7 @@ export class Agent {
       input: serializeContextToText(state.context),
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     // Queue new tool calls inside the unified state for the next step
