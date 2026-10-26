@@ -20,7 +20,7 @@ type ProgressCallback = (state: State) => void | Promise<void>;
 
 export interface AgentOptions {
   model?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   extraInstructions?: string;
   maxSteps?: number;
 }
@@ -28,13 +28,13 @@ export interface AgentOptions {
 export class Agent {
   private readonly client = new OpenAI();
   private readonly model: string;
-  private readonly reasoningEffort: "minimal" | "low" | "medium" | "high";
+  private readonly reasoningEffort: "none" | "low" | "medium" | "high";
   private readonly maxSteps: number;
   private readonly systemPrompt: string;
   private readonly toolSchemas: Tool[];
 
   constructor(options: AgentOptions = {}) {
-    this.model = options.model ?? "gpt-5";
+    this.model = options.model ?? "gpt-6-luna";
     this.reasoningEffort = options.reasoningEffort ?? "low";
     this.maxSteps = options.maxSteps ?? 10;
 
@@ -191,7 +191,7 @@ export class Agent {
       input: serializeContextToText(state.context),
       tools: this.toolSchemas,
       tool_choice: "required",
-      reasoning: this.model === "gpt-5" ? { effort: this.reasoningEffort } : undefined
+      reasoning: { effort: this.reasoningEffort }
     });
 
     // Queue new tool calls inside the unified state for the next step
